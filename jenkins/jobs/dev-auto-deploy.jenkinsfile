@@ -1,0 +1,131 @@
+pipeline {
+    agent any
+
+    environment {
+        // Tên Docker Hub repository của bạn
+        DOCKER_HUB_REPO = 'hytaty'
+        // Tổ chức mà Maven plugin của Spring Boot đang sử dụng để build image cục bộ (từ pom.xml của bạn)
+        LOCAL_DOCKER_ORG = 'springcommunity'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    checkout scm // Checkout mã nguồn của branch hiện tại
+
+                    // Lấy ID commit cuối cùng của branch hiện tại
+                    // env.GIT_COMMIT là biến tích hợp của Jenkins, hoặc dùng lệnh git nếu cần chắc chắn
+                    env.COMMIT_ID = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+
+                    // Lấy tên branch, loại bỏ các ký tự đặc biệt để dùng làm tag Docker nếu cần
+                    // Tuy nhiên, theo yêu cầu bạn chỉ cần commit ID nên biến này có thể không cần thiết cho việc tagging
+                    env.BRANCH_NAME_CLEAN = env.BRANCH_NAME ? env.BRANCH_NAME.replaceAll('[^a-zA-Z0-9.-]+', '_') : 'main'
+
+                    echo "--- Starting CI Pipeline for microservices ---"
+                    echo "Current Branch: ${env.BRANCH_NAME}" // In ra tên branch gốc
+                    echo "Commit ID: ${env.COMMIT_ID}"
+                }
+            }
+        }
+
+        stage('Build and Push Docker Images') {
+            steps {
+                script {
+                    // Định nghĩa danh sách các microservice hợp lệ
+                    // Đặt ở đây để tránh lỗi Groovy Sandbox liên quan đến cú pháp List trong 'environment'
+                    def VALID_SERVICES = [
+                        'spring-petclinic-admin-server',
+                        'spring-petclinic-api-gateway',
+                        'spring-petclinic-config-server',
+                        'spring-petclinic-customers-service',
+                        'spring-petclinic-discovery-server',
+                        'spring-petclinic-genai-service',
+                        'spring-petclinic-vets-service',
+                        'spring-petclinic-visits-service'
+                    ]
+
+                    sh '''
+                        echo "Building all microservices with Maven buildDocker profile..."
+                        chmod +x mvnw
+                        # Chạy lệnh build Maven ở thư mục gốc của project.
+                        # Maven sẽ đi vào từng module con và build Docker image cho từng cái.
+                        ./mvnw clean install -P buildDocker -DskipTests
+                    '''
+
+                    // Lấy danh sách các microservice từ các thư mục con có pom.xml
+                    def servicesFound = findFiles(glob: '*/pom.xml')
+
+                    // Trích xuất tên thư mục cha (là tên service đầy đủ như trong pom.xml)
+                    def serviceNames = servicesFound.collect { fileWrapper ->
+                        // Ví dụ: "spring-petclinic-admin-server/pom.xml" -> "spring-petclinic-admin-server"
+                        return fileWrapper.path.split('/')[0]
+                    }.unique() // Loại bỏ các tên trùng lặp nếu có
+
+                    // Lọc ra chỉ những service nằm trong danh sách VALID_SERVICES
+                    def servicesToProcess = serviceNames.findAll { serviceName ->
+                        VALID_SERVICES.contains(serviceName)
+                    }
+
+                    // Đăng nhập Docker Hub một lần duy nhất trước khi push các image
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-pat-hytaty', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
+
+                        // Lặp qua từng service để retag và push image
+                        for (def serviceName : servicesToProcess) {
+                            // Tên image được build bởi Maven trên Docker daemon cục bộ
+                            // Dựa trên pom.xml, nó là ${docker.image.prefix}/${project.artifactId}:latest
+                            def localImageBaseName = "${LOCAL_DOCKER_ORG}/${serviceName.toLowerCase()}"
+                            def localImageTag = "latest" // Maven mặc định build với tag 'latest'
+
+                            // Tên image đích khi push lên Docker Hub của bạn
+                            def targetImageRepo = "${DOCKER_HUB_REPO}/${serviceName.toLowerCase()}"
+
+                            // Tên tag theo yêu cầu: Commit ID cuối cùng
+                            def commitIdTag = env.COMMIT_ID
+
+                            echo "--- Processing image for ${serviceName} ---"
+                            echo "Local Image: ${localImageBaseName}:${localImageTag}"
+                            echo "Target Tag (Commit ID): ${targetImageRepo}:${commitIdTag}"
+
+                            // Retag image từ localImageBaseName:latest sang targetImageRepo:commitIdTag
+                            sh "docker tag ${localImageBaseName}:${localImageTag} ${targetImageRepo}:${commitIdTag}"
+                            sh "docker push ${targetImageRepo}:${commitIdTag}"
+                            echo "Pushed: ${targetImageRepo}:${commitIdTag}"
+
+                            // Nếu branch hiện tại là 'main', push thêm tag 'latest' và 'main'
+                            if ("${env.BRANCH_NAME_CLEAN}" == "main") {
+                                echo "Branch is 'main', pushing 'latest' and 'main' tags as well."
+
+                                // Push 'latest' tag
+                                sh "docker tag ${localImageBaseName}:${localImageTag} ${targetImageRepo}:latest"
+                                sh "docker push ${targetImageRepo}:latest"
+                                echo "Pushed: ${targetImageRepo}:latest"
+
+                                // Push 'main' tag (nếu chưa phải là 'latest' hoặc 'commitId' trùng với 'main')
+                                if (localImageTag != "main" && commitIdTag != "main") { // Tránh push trùng tag
+                                   sh "docker tag ${localImageBaseName}:${localImageTag} ${targetImageRepo}:main"
+                                   sh "docker push ${targetImageRepo}:main"
+                                   echo "Pushed: ${targetImageRepo}:main"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh "docker logout" // Đảm bảo logout khỏi Docker Hub sau khi hoàn tất
+            cleanWs() // Dọn dẹp workspace Jenkins
+        }
+        success {
+            echo "CI Pipeline completed successfully for all microservices images."
+        }
+        failure {
+            echo "CI Pipeline failed for microservices images build/push."
+        }
+    }
+}
