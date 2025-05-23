@@ -3,6 +3,17 @@ pipeline {
 
     environment {
         DOCKER_HUB_REPO = 'hytaty'
+        // Cập nhật danh sách các service hợp lệ với tên đầy đủ
+        VALID_SERVICES = [
+            'spring-petclinic-admin-server',
+            'spring-petclinic-api-gateway',
+            'spring-petclinic-config-server',
+            'spring-petclinic-customers-service',
+            'spring-petclinic-discovery-server',
+            'spring-petclinic-genai-service',
+            'spring-petclinic-vets-service',
+            'spring-petclinic-visits-service'
+        ]
     }
 
     stages {
@@ -21,6 +32,7 @@ pipeline {
         stage('Build and Push All Docker Images') {
             steps {
                 script {
+                    // Chạy Maven command để build JAR và Docker images cho TẤT CẢ các service
                     sh '''
                         echo "Building all microservices with Maven buildDocker profile..."
                         chmod +x mvnw
@@ -28,33 +40,31 @@ pipeline {
                     '''
 
                     // Lấy danh sách các microservice từ thư mục hiện tại
-                    // Sử dụng `path` của FileWrapper và trích xuất thư mục cha
-                    def services = findFiles(glob: '*/pom.xml').collect { 
-                        // Lấy đường dẫn đầy đủ (e.g., "api-gateway/pom.xml")
-                        def fullPath = it.path 
-                        // Tách lấy phần thư mục (e.g., "api-gateway")
-                        def serviceDir = fullPath.split('/')[0] 
-                        return serviceDir
-                    }
-                    
-                    // Lọc ra các thư mục không phải là service chính
-                    // Vẫn cần regex này để đảm bảo chỉ xử lý các microservice mong muốn
-                    services = services.findAll { 
-                        it.matches(~/^(api-gateway|config-server|discovery-server|vets-service|visits-service|customers-service|tracing-server|admin-server)$/) 
-                    }
-                    // Loại bỏ các service trùng lặp nếu có (collect có thể trả về trùng nếu có pom.xml ở nhiều nơi)
-                    services = services.unique()
+                    // `findFiles` sẽ trả về danh sách các file pom.xml
+                    def servicesFound = findFiles(glob: '*/pom.xml')
 
+                    // Trích xuất tên thư mục cha (là tên service đầy đủ)
+                    def serviceNames = servicesFound.collect { fileWrapper ->
+                        // it.path sẽ là ví dụ: "spring-petclinic-api-gateway/pom.xml"
+                        // fileWrapper.path.split('/')[0] sẽ lấy "spring-petclinic-api-gateway"
+                        return fileWrapper.path.split('/')[0]
+                    }.unique() // Đảm bảo không có tên dịch vụ trùng lặp
+
+                    // Lọc ra chỉ những service nằm trong danh sách VALID_SERVICES
+                    def servicesToProcess = serviceNames.findAll { serviceName ->
+                        VALID_SERVICES.contains(serviceName)
+                    }
 
                     // Đăng nhập Docker Hub
                     withCredentials([usernamePassword(credentialsId: 'docker-hub-pat-hytaty', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
 
-                        for (def serviceName : services) { // serviceName giờ đã là tên thư mục vd: "api-gateway"
+                        for (def serviceName : servicesToProcess) {
+                            // Tên repository trên Docker Hub phải là chữ thường
                             def baseImageName = "${DOCKER_HUB_REPO}/${serviceName.toLowerCase()}"
 
-                            def sourceImageTag = "latest" // Kiểm tra lại pom.xml để xác nhận nếu không phải 'latest'
-                                                          // (ví dụ: `new XmlParser().parseText(readFile("${serviceName}/pom.xml")).version.text()`)
+                            // Profile Maven `buildDocker` mặc định tạo image với tag 'latest'
+                            def sourceImageTag = "latest"
 
                             def imageWithCommitTag = "${baseImageName}:${env.COMMIT_ID}"
                             def imageWithBranchTag = "${baseImageName}:${env.BRANCH_NAME_CLEAN}"
@@ -70,7 +80,7 @@ pipeline {
                             echo "Pushed: ${imageWithCommitTag}"
 
                             // Retag và Push image với Branch Name
-                            if (env.BRANCH_NAME_CLEAN != sourceImageTag) {
+                            if (env.BRANCH_NAME_CLEAN != sourceImageTag) { // Tránh push trùng tag nếu branch clean trùng với source tag
                                 sh "docker tag ${baseImageName}:${sourceImageTag} ${imageWithBranchTag}"
                                 sh "docker push ${imageWithBranchTag}"
                                 echo "Pushed: ${imageWithBranchTag}"
@@ -78,12 +88,12 @@ pipeline {
 
                             // Push 'latest' và 'main' nếu đang ở branch 'main'
                             if ("${env.BRANCH_NAME_CLEAN}" == "main") {
-                                if (sourceImageTag != "latest") {
+                                if (sourceImageTag != "latest") { // Tránh push trùng tag nếu sourceImageTag đã là latest
                                     sh "docker tag ${baseImageName}:${sourceImageTag} ${baseImageName}:latest"
                                     sh "docker push ${baseImageName}:latest"
                                     echo "Pushed: ${baseImageName}:latest"
                                 }
-                                if (sourceImageTag != "main") {
+                                if (sourceImageTag != "main") { // Tránh push trùng tag nếu sourceImageTag đã là main
                                     sh "docker tag ${baseImageName}:${sourceImageTag} ${baseImageName}:main"
                                     sh "docker push ${baseImageName}:main"
                                     echo "Pushed: ${baseImageName}:main"
