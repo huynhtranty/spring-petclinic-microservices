@@ -4,7 +4,7 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'hytaty'
         // Không cần SERVICE_NAME cố định ở đây vì chúng ta sẽ duyệt qua từng service
-        # DOCKER_HUB_CREDENTIALS_ID_VAR = 'docker-hub-pat-hytaty' // Nếu dùng lựa chọn 2
+        # DOCKER_HUB_CREDENTIALS_ID_VAR = 'docker-hub' // Nếu dùng lựa chọn 2
     }
 
     stages {
