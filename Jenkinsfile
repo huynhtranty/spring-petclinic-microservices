@@ -38,6 +38,12 @@ pipeline {
                         echo "Building all microservices with Maven buildDocker profile..."
                         chmod +x mvnw
                         ./mvnw clean install -P buildDocker -DskipTests
+
+
+                        # THÊM DÒNG NÀY ĐỂ DEBUG
+                        echo "--- Listing Docker images after Maven build ---"
+                        docker images
+                        echo "----------------------------------------------"
                     '''
 
                     def servicesFound = findFiles(glob: '*/pom.xml')
