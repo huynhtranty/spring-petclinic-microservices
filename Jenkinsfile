@@ -19,6 +19,7 @@ pipeline {
                 }
             }
         }
+
         stage('Build Application') {
             steps {
                 sh '''
@@ -28,6 +29,7 @@ pipeline {
                 '''
             }
         }
+
         stage('Build Docker Image') {
             steps {
                 script {
@@ -46,14 +48,14 @@ pipeline {
                         # If you already have a Dockerfile in your repo, remove this block.
                         if [ ! -f Dockerfile ]; then
                             cat > Dockerfile << 'EOF'
-                        FROM openjdk:17-jdk-slim
-                        VOLUME /tmp
-                        ARG JAR_FILE=target/*.jar
-                        COPY \${JAR_FILE} app.jar
-                        EXPOSE 8080
-                        ENTRYPOINT ["java","-jar","/app.jar"]
-                        EOF
-                                                fi
+FROM openjdk:17-jdk-slim
+VOLUME /tmp
+ARG JAR_FILE=target/*.jar
+COPY \${JAR_FILE} app.jar
+EXPOSE 8080
+ENTRYPOINT ["java","-jar","/app.jar"]
+EOF
+                        fi
 
                         # Build image with commit ID tag
                         docker build -t ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} .
@@ -70,13 +72,14 @@ pipeline {
                 }
             }
         }
+
         stage('Push to Docker Hub') {
             steps {
                 script {
                     def imageTag = env.COMMIT_ID
 
                     // Sử dụng ID của credential đã tạo trong Jenkins UI
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-pat-hytaty', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh """
                             echo "Pushing images to Docker Hub..."
                             echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
@@ -100,6 +103,7 @@ pipeline {
             }
         }
     }
+
     post {
         always {
             cleanWs()
