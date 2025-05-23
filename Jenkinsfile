@@ -47,9 +47,6 @@ pipeline {
                     def commitIdTag = env.COMMIT_ID
 
                     echo "--- Building combined Docker image from Dockerfile ---"
-                    # Chạy lệnh docker build từ thư mục gốc của Jenkins workspace.
-                    # Build context là thư mục gốc của dự án (.), để Docker có thể COPY các JAR từ các thư mục con.
-                    # Đường dẫn tới Dockerfile là tương đối từ thư mục gốc.
                     sh "docker build -t ${imageFullName}:${commitIdTag} -f ${DOCKERFILE_PATH} ."
                     echo "Combined image built: ${imageFullName}:${commitIdTag}"
 
@@ -58,11 +55,9 @@ pipeline {
                         echo "Logged into Docker Hub."
 
                         echo "--- Pushing combined image to Docker Hub ---"
-                        # Push image với tag commit ID
                         sh "docker push ${imageFullName}:${commitIdTag}"
                         echo "Pushed: ${imageFullName}:${commitIdTag}"
 
-                        # Nếu là branch 'main', push thêm tag 'latest' và 'main'
                         if ("${env.BRANCH_NAME_CLEAN}" == "main") {
                             echo "Branch is 'main', pushing 'latest' and 'main' tags as well."
                             sh "docker tag ${imageFullName}:${commitIdTag} ${imageFullName}:latest"
