@@ -3,7 +3,8 @@ pipeline {
 
     environment {
         DOCKER_HUB_REPO = 'hytaty'
-        SERVICE_NAME = env.JOB_NAME.split('/')[0].replace('petclinic-', '').toLowerCase()
+        // Không cần SERVICE_NAME cố định ở đây vì chúng ta sẽ duyệt qua từng service
+        # DOCKER_HUB_CREDENTIALS_ID_VAR = 'docker-hub-pat-hytaty' // Nếu dùng lựa chọn 2
     }
 
     stages {
@@ -13,81 +14,83 @@ pipeline {
                 script {
                     env.COMMIT_ID = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
                     env.BRANCH_NAME_CLEAN = env.BRANCH_NAME ? env.BRANCH_NAME.replaceAll('[^a-zA-Z0-9.-]+', '_') : 'main'
-                    echo "Building ${env.SERVICE_NAME} - Branch: ${env.BRANCH_NAME_CLEAN}, Commit: ${env.COMMIT_ID}"
+                    echo "--- Building all microservices ---"
+                    echo "Branch: ${env.BRANCH_NAME_CLEAN}, Commit: ${env.COMMIT_ID}"
                 }
             }
         }
 
-        stage('Build Application') {
-            steps {
-                sh '''
-                    echo "Building Spring Boot application..."
-                    chmod +x mvnw
-                    ./mvnw clean package -DskipTests
-                '''
-            }
-        }
-
-        stage('Build Docker Image') {
+        stage('Build and Push All Docker Images') {
             steps {
                 script {
-                    def imageTag = env.COMMIT_ID
-
-                    // SỬA ĐỔI Ở ĐÂY: Dùng ''' thay vì """ để tránh interpolation của Groovy
+                    // Chạy Maven command để build JAR và Docker images cho TẤT CẢ các service
+                    // Maven sẽ tự động tạo images và đặt tên theo cấu hình trong pom.xml của từng service
                     sh '''
-                        echo "Building Docker image with tag: ${imageTag}"
+                        echo "Building all microservices with Maven buildDocker profile..."
+                        chmod +x mvnw
+                        ./mvnw clean install -P buildDocker -DskipTests
+                    '''
+                    
+                    // Lấy danh sách các microservice từ thư mục hiện tại
+                    // Giả định mỗi microservice là một thư mục con chứa pom.xml
+                    def services = findFiles(glob: '*/pom.xml').collect { it.parent }
+                    // Lọc ra các thư mục không phải là service chính (ví dụ: .git, scripts, etc.)
+                    // Bạn có thể cần điều chỉnh regex này tùy thuộc vào tên thư mục service của bạn
+                    services = services.findAll { 
+                        it.matches(~/^(api-gateway|config-server|discovery-server|vets-service|visits-service|customers-service|tracing-server|admin-server)$/) 
+                    }
 
-                        if [ ! -f Dockerfile ]; then
-                            cat > Dockerfile << 'EOF'
-FROM openjdk:17-jdk-slim
-VOLUME /tmp
-ARG JAR_FILE=target/*.jar
-COPY ${JAR_FILE} app.jar
-EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app.jar"]
-EOF
-                        fi
-
-                        # Build image with commit ID tag
-                        docker build -t ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag}" + ''' .
-
-                        # Also tag with branch name for convenience
-                        docker tag ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${env.BRANCH_NAME_CLEAN}" + '''
-
-                        # Tag as latest/main if main branch
-                        if [ "${env.BRANCH_NAME_CLEAN}" == "main" ]; then
-                            docker tag ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:latest" + '''
-                            docker tag ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:main" + '''
-                        fi
-                    ''' // Đóng khối sh bằng '''
-                }
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            steps {
-                script {
-                    def imageTag = env.COMMIT_ID
-
+                    // Đăng nhập Docker Hub
                     withCredentials([usernamePassword(credentialsId: 'docker-hub-pat-hytaty', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh '''
-                            echo "Pushing images to Docker Hub..."
-                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
 
-                            # Push image with commit ID tag
-                            docker push ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag}" + '''
+                        for (def serviceDir : services) {
+                            def serviceName = serviceDir.split('/')[-1] // Lấy tên thư mục cuối cùng
+                            def baseImageName = "${DOCKER_HUB_REPO}/${serviceName.toLowerCase()}" // Đảm bảo tên repo là chữ thường
 
-                            # Push branch tag
-                            docker push ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${env.BRANCH_NAME_CLEAN}" + '''
+                            // Maven -PbuildDocker thường sẽ tạo image với tag 'latest' hoặc version từ pom.xml
+                            // Chúng ta sẽ retag và push theo yêu cầu của bạn
 
-                            # Push latest/main if main branch
-                            if [ "${env.BRANCH_NAME_CLEAN}" == "main" ]; then
-                                docker push ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:latest" + '''
-                                docker push ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:main" + '''
-                            fi
+                            def sourceImageTag = "latest" // Thường là 'latest' hoặc '0.0.1-SNAPSHOT' nếu bạn không config lại Maven
+                                                          // Có thể cần kiểm tra pom.xml của từng service để biết tag mặc định
+                                                          // hoặc lấy version từ pom.xml:
+                                                          // def version = new XmlParser().parseText(readFile("${serviceDir}/pom.xml")).version.text()
+                                                          // def sourceImageTag = version
 
-                            echo "Successfully pushed ${SERVICE_NAME}:${imageTag}"
-                        '''
+                            def imageWithCommitTag = "${baseImageName}:${env.COMMIT_ID}"
+                            def imageWithBranchTag = "${baseImageName}:${env.BRANCH_NAME_CLEAN}"
+
+                            echo "--- Processing image for ${serviceName} ---"
+                            echo "Source Image: ${baseImageName}:${sourceImageTag}"
+                            echo "Target Commit Tag: ${imageWithCommitTag}"
+                            echo "Target Branch Tag: ${imageWithBranchTag}"
+
+                            // Retag và Push image với Commit ID
+                            sh "docker tag ${baseImageName}:${sourceImageTag} ${imageWithCommitTag}"
+                            sh "docker push ${imageWithCommitTag}"
+                            echo "Pushed: ${imageWithCommitTag}"
+
+                            // Retag và Push image với Branch Name
+                            if (env.BRANCH_NAME_CLEAN != sourceImageTag) { // Tránh push trùng tag nếu branch clean trùng với source tag
+                                sh "docker tag ${baseImageName}:${sourceImageTag} ${imageWithBranchTag}"
+                                sh "docker push ${imageWithBranchTag}"
+                                echo "Pushed: ${imageWithBranchTag}"
+                            }
+
+                            // Push 'latest' và 'main' nếu đang ở branch 'main'
+                            if ("${env.BRANCH_NAME_CLEAN}" == "main") {
+                                if (sourceImageTag != "latest") { // Tránh push trùng tag nếu sourceImageTag đã là latest
+                                    sh "docker tag ${baseImageName}:${sourceImageTag} ${baseImageName}:latest"
+                                    sh "docker push ${baseImageName}:latest"
+                                    echo "Pushed: ${baseImageName}:latest"
+                                }
+                                if (sourceImageTag != "main") { // Tránh push trùng tag nếu sourceImageTag đã là main
+                                    sh "docker tag ${baseImageName}:${sourceImageTag} ${baseImageName}:main"
+                                    sh "docker push ${baseImageName}:main"
+                                    echo "Pushed: ${baseImageName}:main"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -96,13 +99,14 @@ EOF
 
     post {
         always {
+            sh "docker logout"
             cleanWs()
         }
         success {
-            echo "CI Pipeline completed successfully for ${env.SERVICE_NAME}"
+            echo "CI Pipeline completed successfully for all microservices."
         }
         failure {
-            echo "CI Pipeline failed for ${env.SERVICE_NAME}"
+            echo "CI Pipeline failed for microservices build/push."
         }
     }
 }
