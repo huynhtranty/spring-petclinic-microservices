@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_REPO = 'hytaty'
-        // XÓA VALID_SERVICES KHỎI ĐÂY
+        DOCKER_HUB_REPO = 'hytaty' // Repository của bạn trên Docker Hub
+        LOCAL_DOCKER_ORG = 'springcommunity' // Tổ chức mà Maven plugin đang sử dụng để build image
     }
 
     stages {
@@ -22,7 +22,6 @@ pipeline {
         stage('Build and Push All Docker Images') {
             steps {
                 script {
-                    // DI CHUYỂN VALID_SERVICES VÀO ĐÂY
                     def VALID_SERVICES = [
                         'spring-petclinic-admin-server',
                         'spring-petclinic-api-gateway',
@@ -38,13 +37,9 @@ pipeline {
                         echo "Building all microservices with Maven buildDocker profile..."
                         chmod +x mvnw
                         ./mvnw clean install -P buildDocker -DskipTests
-
-
-                        # THÊM DÒNG NÀY ĐỂ DEBUG
-                        echo "--- Listing Docker images after Maven build ---"
-                        docker images
-                        echo "----------------------------------------------"
                     '''
+                    // Không cần `docker images` ở đây nữa, chúng ta đã xác định được pattern
+                    // Nếu bạn muốn giữ lại để debug trong tương lai, hãy cứ để nó.
 
                     def servicesFound = findFiles(glob: '*/pom.xml')
 
@@ -56,42 +51,52 @@ pipeline {
                         VALID_SERVICES.contains(serviceName)
                     }
 
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-pat-hytaty', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
 
                         for (def serviceName : servicesToProcess) {
-                            def baseImageName = "${DOCKER_HUB_REPO}/${serviceName.toLowerCase()}"
+                            // Tên image được build bởi Maven trên Docker daemon cục bộ
+                            def localImageName = "${LOCAL_DOCKER_ORG}/${serviceName.toLowerCase()}" // VD: springcommunity/spring-petclinic-admin-server
 
-                            def sourceImageTag = "latest"
+                            // Tên image đích khi push lên Docker Hub của bạn
+                            def targetImageRepo = "${DOCKER_HUB_REPO}/${serviceName.toLowerCase()}" // VD: hytaty/spring-petclinic-admin-server
 
-                            def imageWithCommitTag = "${baseImageName}:${env.COMMIT_ID}"
-                            def imageWithBranchTag = "${baseImageName}:${env.BRANCH_NAME_CLEAN}"
+                            def sourceImageTag = "latest" // Maven plugin build với tag 'latest'
+
+                            def imageWithCommitTag = "${targetImageRepo}:${env.COMMIT_ID}"
+                            def imageWithBranchTag = "${targetImageRepo}:${env.BRANCH_NAME_CLEAN}"
 
                             echo "--- Processing image for ${serviceName} ---"
-                            echo "Source Image: ${baseImageName}:${sourceImageTag}"
+                            echo "Local Image: ${localImageName}:${sourceImageTag}"
                             echo "Target Commit Tag: ${imageWithCommitTag}"
                             echo "Target Branch Tag: ${imageWithBranchTag}"
 
-                            sh "docker tag ${baseImageName}:${sourceImageTag} ${imageWithCommitTag}"
+                            // Retag image từ localImageName sang targetImageRepo với Commit ID
+                            sh "docker tag ${localImageName}:${sourceImageTag} ${imageWithCommitTag}"
                             sh "docker push ${imageWithCommitTag}"
                             echo "Pushed: ${imageWithCommitTag}"
 
+                            // Retag và Push image với Branch Name
+                            // Đảm bảo không push trùng tag nếu branch clean trùng với source tag
                             if (env.BRANCH_NAME_CLEAN != sourceImageTag) {
-                                sh "docker tag ${baseImageName}:${sourceImageTag} ${imageWithBranchTag}"
+                                sh "docker tag ${localImageName}:${sourceImageTag} ${imageWithBranchTag}"
                                 sh "docker push ${imageWithBranchTag}"
                                 echo "Pushed: ${imageWithBranchTag}"
                             }
 
+                            // Push 'latest' và 'main' nếu đang ở branch 'main'
                             if ("${env.BRANCH_NAME_CLEAN}" == "main") {
+                                // Tránh push trùng tag nếu sourceImageTag đã là latest
                                 if (sourceImageTag != "latest") {
-                                    sh "docker tag ${baseImageName}:${sourceImageTag} ${baseImageName}:latest"
-                                    sh "docker push ${baseImageName}:latest"
-                                    echo "Pushed: ${baseImageName}:latest"
+                                    sh "docker tag ${localImageName}:${sourceImageTag} ${targetImageRepo}:latest"
+                                    sh "docker push ${targetImageRepo}:latest"
+                                    echo "Pushed: ${targetImageRepo}:latest"
                                 }
+                                // Tránh push trùng tag nếu sourceImageTag đã là main
                                 if (sourceImageTag != "main") {
-                                    sh "docker tag ${baseImageName}:${sourceImageTag} ${baseImageName}:main"
-                                    sh "docker push ${baseImageName}:main"
-                                    echo "Pushed: ${baseImageName}:main"
+                                    sh "docker tag ${localImageName}:${sourceImageTag} ${targetImageRepo}:main"
+                                    sh "docker push ${targetImageRepo}:main"
+                                    echo "Pushed: ${targetImageRepo}:main"
                                 }
                             }
                         }
