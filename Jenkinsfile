@@ -1,31 +1,23 @@
+import groovy.json.JsonOutput // Import JsonOutput
+
 pipeline {
     agent any
 
     environment {
-        // Tên Docker Hub repository của bạn
         DOCKER_HUB_REPO = 'hytaty'
-
-        // Đường dẫn tới Dockerfile chung của bạn, nằm trong thư mục 'docker'
         DOCKERFILE_PATH = 'docker/Dockerfile'
-
-        // Phiên bản của dự án (Lấy từ pom.xml gốc)
-        // Cần thiết để tạo ARTIFACT_NAME đúng cho Dockerfile
-        // ĐẢM BẢO GIÁ TRỊ NÀY KHỚP VỚI <version> TRONG pom.xml GỐC CỦA BẠN
-        PROJECT_VERSION = '3.4.1'
+        PROJECT_VERSION = '3.4.1' // ĐẢM BẢO GIÁ TRỊ NÀY KHỚP VỚI <version> TRONG pom.xml GỐC CỦA BẠN
     }
 
     stages {
         stage('Checkout') {
             steps {
                 script {
-                    checkout scm // Checkout mã nguồn của branch hiện tại
+                    checkout scm
 
-                    // === KHẮC PHỤC LỖI: Định nghĩa SERVICE_PORTS_MAP bên trong khối script ===
-                    // Định nghĩa cổng exposed cho mỗi service (Dựa vào docker-compose.yml của bạn)
-                    // Đây là các cổng mà ứng dụng thực sự lắng nghe bên trong container
-                    // Biến này sẽ có sẵn trong toàn bộ pipeline sau khi được định nghĩa
-                    // Gán nó vào env để các stage khác có thể truy cập
-                    env.SERVICE_PORTS_MAP = [
+                    // === KHẮC PHỤC LỖI: Chuyển đổi Map thành JSON string một cách tường minh ===
+                    // Định nghĩa Map
+                    def servicePortsMap = [
                         'spring-petclinic-admin-server': '9090',
                         'spring-petclinic-api-gateway': '8080',
                         'spring-petclinic-config-server': '8888',
@@ -34,12 +26,11 @@ pipeline {
                         'spring-petclinic-genai-service': '8084',
                         'spring-petclinic-vets-service': '8083',
                         'spring-petclinic-visits-service': '8082'
-                    ] as String // Cast to String để Jenkins xử lý an toàn hơn trong env
+                    ]
+                    // Chuyển đổi Map thành JSON string và lưu vào env
+                    env.SERVICE_PORTS_JSON = JsonOutput.toJson(servicePortsMap)
 
-                    // Lấy ID commit cuối cùng của branch hiện tại (dùng ID ngắn)
                     env.COMMIT_ID = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-
-                    // Lấy tên branch, loại bỏ các ký tự đặc biệt để dùng làm tag Docker
                     env.BRANCH_NAME_CLEAN = env.BRANCH_NAME ? env.BRANCH_NAME.replaceAll('[^a-zA-Z0-9.-]+', '_') : 'main'
 
                     echo "--- Starting CI Pipeline for microservices ---"
@@ -89,18 +80,15 @@ pipeline {
                         sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
                         echo "Logged into Docker Hub."
 
-                        // === KHẮC PHỤC LỖI: Gán map từ env vào biến cục bộ trước khi sử dụng ===
-                        def servicePorts = readJSON text: env.SERVICE_PORTS_MAP // Đọc lại JSON string thành Map
-                        // Nếu cách trên không được, thử cách này:
-                        // def servicePorts = new groovy.json.JsonSlurper().parseText(env.SERVICE_PORTS_MAP)
+                        // === KHẮC PHỤC LỖI: Đọc lại JSON string thành Map ===
+                        def servicePorts = readJSON text: env.SERVICE_PORTS_JSON
 
                         for (def serviceName : servicesToProcess) {
                             def artifactName = "${serviceName}-${env.PROJECT_VERSION}"
                             
-                            // Sử dụng biến cục bộ đã được gán
                             def exposedPort = servicePorts[serviceName]
                             if (!exposedPort) {
-                                error "Error: Port not defined for service ${serviceName} in SERVICE_PORTS_MAP. Please update Jenkinsfile."
+                                error "Error: Port not defined for service ${serviceName} in SERVICE_PORTS_JSON. Please update Jenkinsfile."
                             }
 
                             def targetImageRepo = "${env.DOCKER_HUB_REPO}/${serviceName.toLowerCase()}"
