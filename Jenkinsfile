@@ -3,8 +3,6 @@ pipeline {
 
     environment {
         DOCKER_HUB_REPO = 'hytaty'
-        // Không cần khai báo DOCKER_HUB_CREDENTIALS ở đây nữa
-        // Chuyển đổi SERVICE_NAME sang chữ thường để tuân thủ quy tắc Docker repository
         SERVICE_NAME = env.JOB_NAME.split('/')[0].replace('petclinic-', '').toLowerCase()
     }
 
@@ -35,32 +33,33 @@ pipeline {
                 script {
                     def imageTag = env.COMMIT_ID
 
-                    sh """
+                    // SỬA ĐỔI Ở ĐÂY: Dùng ''' thay vì """ để tránh interpolation của Groovy
+                    sh '''
                         echo "Building Docker image with tag: ${imageTag}"
 
                         if [ ! -f Dockerfile ]; then
                             cat > Dockerfile << 'EOF'
-                        FROM openjdk:17-jdk-slim
-                        VOLUME /tmp
-                        ARG JAR_FILE=target/*.jar
-                        COPY \${JAR_FILE} app.jar
-                        EXPOSE 8080
-                        ENTRYPOINT ["java","-jar","/app.jar"]
-                        EOF
+FROM openjdk:17-jdk-slim
+VOLUME /tmp
+ARG JAR_FILE=target/*.jar
+COPY ${JAR_FILE} app.jar
+EXPOSE 8080
+ENTRYPOINT ["java","-jar","/app.jar"]
+EOF
                         fi
 
                         # Build image with commit ID tag
-                        docker build -t ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} .
+                        docker build -t ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag}" + ''' .
 
                         # Also tag with branch name for convenience
-                        docker tag ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${env.BRANCH_NAME_CLEAN}
+                        docker tag ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${env.BRANCH_NAME_CLEAN}" + '''
 
                         # Tag as latest/main if main branch
                         if [ "${env.BRANCH_NAME_CLEAN}" == "main" ]; then
-                            docker tag ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:latest
-                            docker tag ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:main
+                            docker tag ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:latest" + '''
+                            docker tag ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag} ${DOCKER_HUB_REPO}/${SERVICE_NAME}:main" + '''
                         fi
-                    """
+                    ''' // Đóng khối sh bằng '''
                 }
             }
         }
@@ -71,24 +70,24 @@ pipeline {
                     def imageTag = env.COMMIT_ID
 
                     withCredentials([usernamePassword(credentialsId: 'docker-hub-pat-hytaty', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh """
+                        sh '''
                             echo "Pushing images to Docker Hub..."
                             echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
 
                             # Push image with commit ID tag
-                            docker push ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag}
+                            docker push ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${imageTag}" + '''
 
                             # Push branch tag
-                            docker push ${DOCKER_HUB_REPO}/${SERVICE_NAME}:${env.BRANCH_NAME_CLEAN}
+                            docker push ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:${env.BRANCH_NAME_CLEAN}" + '''
 
                             # Push latest/main if main branch
                             if [ "${env.BRANCH_NAME_CLEAN}" == "main" ]; then
-                                docker push ${DOCKER_HUB_REPO}/${SERVICE_NAME}:latest
-                                docker push ${DOCKER_HUB_REPO}/${SERVICE_NAME}:main
+                                docker push ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:latest" + '''
+                                docker push ''' + "${DOCKER_HUB_REPO}/${SERVICE_NAME}:main" + '''
                             fi
 
                             echo "Successfully pushed ${SERVICE_NAME}:${imageTag}"
-                        """
+                        '''
                     }
                 }
             }
