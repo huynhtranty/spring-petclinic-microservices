@@ -20,10 +20,11 @@ pipeline {
                 script {
                     checkout scm // Checkout mã nguồn của branch hiện tại
 
-                    // === KHẮC PHỤC LỖI: Định nghĩa SERVICE_PORTS bên trong khối script ===
+                    // === KHẮC PHỤC LỖI: Định nghĩa SERVICE_PORTS_MAP bên trong khối script ===
                     // Định nghĩa cổng exposed cho mỗi service (Dựa vào docker-compose.yml của bạn)
                     // Đây là các cổng mà ứng dụng thực sự lắng nghe bên trong container
                     // Biến này sẽ có sẵn trong toàn bộ pipeline sau khi được định nghĩa
+                    // Gán nó vào env để các stage khác có thể truy cập
                     env.SERVICE_PORTS_MAP = [
                         'spring-petclinic-admin-server': '9090',
                         'spring-petclinic-api-gateway': '8080',
@@ -33,7 +34,7 @@ pipeline {
                         'spring-petclinic-genai-service': '8084',
                         'spring-petclinic-vets-service': '8083',
                         'spring-petclinic-visits-service': '8082'
-                    ]
+                    ] as String // Cast to String để Jenkins xử lý an toàn hơn trong env
 
                     // Lấy ID commit cuối cùng của branch hiện tại (dùng ID ngắn)
                     env.COMMIT_ID = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
@@ -88,11 +89,16 @@ pipeline {
                         sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
                         echo "Logged into Docker Hub."
 
+                        // === KHẮC PHỤC LỖI: Gán map từ env vào biến cục bộ trước khi sử dụng ===
+                        def servicePorts = readJSON text: env.SERVICE_PORTS_MAP // Đọc lại JSON string thành Map
+                        // Nếu cách trên không được, thử cách này:
+                        // def servicePorts = new groovy.json.JsonSlurper().parseText(env.SERVICE_PORTS_MAP)
+
                         for (def serviceName : servicesToProcess) {
                             def artifactName = "${serviceName}-${env.PROJECT_VERSION}"
                             
-                            // Sử dụng biến môi trường SERVICE_PORTS_MAP
-                            def exposedPort = env.SERVICE_PORTS_MAP[serviceName]
+                            // Sử dụng biến cục bộ đã được gán
+                            def exposedPort = servicePorts[serviceName]
                             if (!exposedPort) {
                                 error "Error: Port not defined for service ${serviceName} in SERVICE_PORTS_MAP. Please update Jenkinsfile."
                             }
