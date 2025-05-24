@@ -7,7 +7,7 @@ pipeline {
     }
 
     stages {
-        stage('test minikube') {
+        stage('test k8s') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
                     script {
