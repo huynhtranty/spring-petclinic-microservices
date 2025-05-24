@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_REGISTRY = "sciderus"
+        DOCKER_REGISTRY = "hytaty"
         NAMESPACE = "dev-review"
     }
 
