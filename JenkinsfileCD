@@ -87,21 +87,21 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
                     script {
-                        env.KUBECONFIG = "${KUBECONFIG_FILE}" // Đảm bảo biến KUBECONFIG được đặt
+                        env.KUBECONFIG = "${KUBECONFIG_FILE}"
 
-                        def nodeExternalIP = sh(
-                            script: "kubectl get node k8s-master -o jsonpath='{.status.addresses[?(@.type==\"ExternalIP\")].address}'",
+                        // Lấy IP Public (ExternalIP) của node đầu tiên có ExternalIP
+                        def kubectlResult = sh( // <-- Gán kết quả của sh vào một biến mới (ví dụ: kubectlResult)
+                            script: "kubectl get nodes -o jsonpath='{.items[?(@.status.addresses[?(@.type==\"ExternalIP\")])].status.addresses[?(@.type==\"ExternalIP\")].address}'",
                             returnStdout: true,
                             returnStatus: true
                         )
-                        def output = nodeExternalIP.stdout.trim()
-                        def status = nodeExternalIP.status
 
-                        if (status != 0 || output.isEmpty()) {
-                            echo "Warning: Could not determine an ExternalIP for 'k8s-master' node. Access might be limited. Make sure your master node has a public IP."
-                            nodeExternalIP = "20.6.92.216"
+                        def nodeExternalIP
+                        if (kubectlResult.status != 0 || kubectlResult.stdout.trim().isEmpty()) { // <-- Truy cập .status và .stdout trên kubectlResult
+                            echo "Warning: Could not determine an ExternalIP for any node. Access might be limited. Make sure your master node has a public IP."
+                            nodeExternalIP = "YOUR_PUBLIC_IP_HERE" // Fallback hoặc hướng dẫn thủ công
                         } else {
-                            nodeExternalIP = output
+                            nodeExternalIP = kubectlResult.stdout.trim() // <-- Lấy stdout và trim nó
                         }
 
                         def services = [
@@ -118,12 +118,12 @@ pipeline {
                         services.each { svc ->
                             def svcName = svc.name
                             def nodePort = sh(
-                                script: "kubectl get svc ${svcName} -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}'", // Sử dụng env.NAMESPACE
+                                script: "kubectl get svc ${svcName} -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}'",
                                 returnStdout: true
                             ).trim()
 
                             echo "${svcName} is accessible at: http://${nodeExternalIP}:${nodePort}"
-                            echo "→ Add to /etc/hosts: ${nodeExternalIP}    ${svcName}.local (Only if you are running DNS locally or manually editing hosts file for internal access)"
+                            echo "→ Add to /etc/hosts (on your client machine): ${nodeExternalIP}    ${svcName}.local (Only for local DNS resolution, not for external access without manual hosts file editing)"
                         }
                     }
                 }       
