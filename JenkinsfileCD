@@ -91,9 +91,19 @@ pipeline {
 
                         // Lấy IP Public của node (master node)
                         def nodeExternalIP = sh(
-                            script: "kubectl get nodes -o jsonpath='{.items[?(@.status.addresses[?(@.type==\"ExternalIP\")])].status.addresses[?(@.type==\"ExternalIP\")].address}'",
-                            returnStdout: true
-                        ).trim()
+                            script: "kubectl get node k8s-master -o jsonpath='{.status.addresses[?(@.type==\"ExternalIP\")].address}'",
+                            returnStdout: true,
+                            returnStatus: true
+                        )
+                        def output = nodeExternalIP.stdout.trim()
+                        def status = nodeExternalIP.status
+
+                        if (status != 0 || output.isEmpty()) {
+                            echo "Warning: Could not determine an ExternalIP for 'k8s-master' node. Access might be limited. Make sure your master node has a public IP."
+                            nodeExternalIP = "20.6.92.216"
+                        } else {
+                            nodeExternalIP = output
+                        }
 
                         if (!nodeExternalIP) {
                             echo "Warning: Could not determine an ExternalIP for any node. Access might be limited."
