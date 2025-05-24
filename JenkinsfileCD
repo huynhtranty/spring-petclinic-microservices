@@ -5,7 +5,6 @@ pipeline {
         DOCKER_REGISTRY = "hytaty"
         NAMESPACE = "dev-review"
     }
-
     parameters {
         string(name: 'admin-server', defaultValue: 'main', description: 'Branch to build for admin-server')
         string(name: 'api-gateway', defaultValue: 'main', description: 'Branch to build for api-gateway')
@@ -16,6 +15,7 @@ pipeline {
         string(name: 'vets-service', defaultValue: 'main', description: 'Branch to build for vets-service')
         string(name: 'visits-service', defaultValue: 'main', description: 'Branch to build for visit-service')
     }
+
     stages {
         stage('test k8s') {
             steps {
@@ -44,7 +44,7 @@ pipeline {
                             [name: "spring-petclinic-config-server",    branch: params['config-server']],
                             [name: "spring-petclinic-discovery-server", branch: params['discovery-server']]
                         ]
-                        sh "kubectl get ns dev-review || kubectl create ns dev-review"
+                        sh "kubectl get ns ${NAMESPACE} || kubectl create ns ${NAMESPACE}"
 
                         services.each { svc ->
 
@@ -85,12 +85,24 @@ pipeline {
 
         stage('Show Access Info') {
             steps {
-                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
                     script {
-                        def workerIP = sh(
-                            script: "kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'",
-                            returnStdout: true
+                        env.KUBECONFIG = "${KUBECONFIG_FILE}" // Đảm bảo biến KUBECONFIG được đặt
+
+                        // Lấy IP Public (ExternalIP) của node đầu tiên có ExternalIP
+                        def nodeExternalIP = sh(
+                            script: "kubectl get nodes -o jsonpath='{.items[?(@.status.addresses[?(@.type==\"ExternalIP\")])].status.addresses[?(@.type==\"ExternalIP\")].address}'",
+                            returnStdout: true,
+                            returnStatus: true // Lấy cả status để kiểm tra lỗi
                         ).trim()
+
+                        if (nodeExternalIP.status != 0 || nodeExternalIP.stdout.isEmpty()) {
+                            echo "Warning: Could not determine an ExternalIP for any node. Access might be limited. Make sure your master node has a public IP."
+                            // Đặt giá trị mặc định hoặc hướng dẫn thủ công nếu không tìm thấy ExternalIP
+                            nodeExternalIP = "YOUR_PUBLIC_IP_HERE" 
+                        } else {
+                            nodeExternalIP = nodeExternalIP.stdout.trim()
+                        }
 
                         def services = [
                             [name: "admin-server",     branch: params['admin-server']],
@@ -106,12 +118,12 @@ pipeline {
                         services.each { svc ->
                             def svcName = svc.name
                             def nodePort = sh(
-                                script: "kubectl get svc ${svcName} -n ${namespace} -o jsonpath='{.spec.ports[0].nodePort}'",
+                                script: "kubectl get svc ${svcName} -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}'",
                                 returnStdout: true
                             ).trim()
 
-                            echo "${svcName} is accessible at: http://${workerIP}:${nodePort}"
-                            echo "→ Add to /etc/hosts: ${workerIP}    ${svcName}.local"
+                            echo "${svcName} is accessible at: http://${nodeExternalIP}:${nodePort}"
+                            echo "→ Add to /etc/hosts (on your client machine): ${nodeExternalIP}    ${svcName}.local (Only for local DNS resolution, not for external access without manual hosts file editing)"
                         }
                     }
                 }       
