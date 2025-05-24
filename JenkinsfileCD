@@ -1,0 +1,123 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_REGISTRY = "sciderus"
+        NAMESPACE = "dev-review"
+    }
+
+    stages {
+        stage('test minikube') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    script {
+                        env.KUBECONFIG = "${KUBECONFIG_FILE}"
+                        sh "kubectl get nodes"
+                    }
+                }
+            }
+        }
+
+        stage('Generate and Apply Kubernetes YAMLs') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    script {
+                        env.KUBECONFIG = "${KUBECONFIG_FILE}"
+
+                        def services = [
+                            [name: "spring-petclinic-admin-server",     branch: params['admin-server']],
+                            [name: "spring-petclinic-api-gateway",      branch: params['api-gateway']],
+                            [name: "spring-petclinic-vets-service",     branch: params['vets-service']],
+                            [name: "spring-petclinic-visits-service",   branch: params['visits-service']],
+                            [name: "spring-petclinic-customers-service",branch: params['customer-service']],
+                            [name: "spring-petclinic-genai-service",    branch: params['genai-service']],
+                            [name: "spring-petclinic-config-server",    branch: params['config-server']],
+                            [name: "spring-petclinic-discovery-server", branch: params['discovery-server']]
+                        ]
+                        sh "kubectl get ns dev-review || kubectl create ns dev-review"
+
+                        services.each { svc ->
+
+                            def SERVICE_NAME = svc.name
+                            def CONTAINER_NAME = SERVICE_NAME.replaceFirst("spring-petclinic-", "")
+                            def BRANCH = svc.branch
+                            def commitId = sh(
+                                script: "git rev-parse origin/${BRANCH}",
+                                returnStdout: true
+                            ).trim()
+
+                            def IMAGE_TAG = (BRANCH != 'main') ? commitId.take(7) : 'latest'
+                            def CONTAINER_PORT = guessPortFromServiceName(SERVICE_NAME)
+                            
+                            echo "Deploying service: ${svc.name} on branch ${svc.branch}"
+                            echo "tag: ${IMAGE_TAG}" 
+
+                            withEnv([
+                                "SERVICE_NAME=${SERVICE_NAME}",
+                                "CONTAINER_NAME=${CONTAINER_NAME}",
+                                "IMAGE_TAG=${IMAGE_TAG}",
+                                "CONTAINER_PORT=${CONTAINER_PORT}",
+                                "NAMESPACE=${env.NAMESPACE}"
+                            ]) {
+                                sh """
+                                envsubst < k8s/deployment.tpl.yaml > ${SERVICE_NAME}-deployment.yaml
+                                envsubst < k8s/service.tpl.yaml > ${SERVICE_NAME}-service.yaml
+
+                                kubectl apply -f ${SERVICE_NAME}-deployment.yaml -n ${NAMESPACE}
+                                kubectl apply -f ${SERVICE_NAME}-service.yaml -n ${NAMESPACE}
+                                """
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Show Access Info') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                    script {
+                        def workerIP = sh(
+                            script: "kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'",
+                            returnStdout: true
+                        ).trim()
+
+                        def services = [
+                            [name: "admin-server",     branch: params['admin-server']],
+                            [name: "api-gateway",      branch: params['api-gateway']],
+                            [name: "vets-service",     branch: params['vets-service']],
+                            [name: "visits-service",   branch: params['visits-service']],
+                            [name: "customers-service",branch: params['customer-service']],
+                            [name: "genai-service",    branch: params['genai-service']],
+                            [name: "config-server",    branch: params['config-server']],
+                            [name: "discovery-server", branch: params['discovery-server']]
+                        ]
+
+                        services.each { svc ->
+                            def svcName = svc.name
+                            def nodePort = sh(
+                                script: "kubectl get svc ${svcName} -n ${namespace} -o jsonpath='{.spec.ports[0].nodePort}'",
+                                returnStdout: true
+                            ).trim()
+
+                            echo "${svcName} is accessible at: http://${workerIP}:${nodePort}"
+                            echo "→ Add to /etc/hosts: ${workerIP}    ${svcName}.local"
+                        }
+                    }
+                }       
+            }
+        }
+    }
+}
+
+def guessPortFromServiceName(name) {
+    if (name.contains("admin")) return "9090"
+    if (name.contains("gateway")) return "8080"
+    if (name.contains("vets")) return "8081"
+    if (name.contains("visits")) return "8082"
+    if (name.contains("customers")) return "8083"
+    if (name.contains("genai")) return "8084"
+    if (name.contains("config")) return "8888"
+    if (name.contains("discovery")) return "8761"
+    return "8080" // default fallback
+}

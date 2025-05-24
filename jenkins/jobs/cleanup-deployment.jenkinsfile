@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+
+    environment {
+        NAMESPACE = "dev-review"
+    }
+
+    options {
+        timestamps()
+    }
+
+    stages {
+        stage('Initialize Kubeconfig') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    sh '''
+                        echo "Setting up kubeconfig..."
+                        export KUBECONFIG=$KUBECONFIG_FILE
+                        kubectl config get-contexts
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Cluster Access') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    sh '''
+                        export KUBECONFIG=$KUBECONFIG_FILE
+                        echo "Verifying access to Kubernetes cluster..."
+                        kubectl cluster-info
+                        kubectl get ns $NAMESPACE
+                    '''
+                }
+            }
+        }
+
+        stage('Delete k8s') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    sh '''
+                        export KUBECONFIG=$KUBECONFIG_FILE
+                        echo "Deleting all in namespace $NAMESPACE..."
+                        kubectl delete all --all -n $NAMESPACE || echo "No thing found."
+                    '''
+                }
+            }
+        }
+
+        stage('Cleanup Complete') {
+            steps {
+                echo "Cleanup completed in namespace: ${env.NAMESPACE}"
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo "An error occurred during cleanup in namespace: ${env.NAMESPACE}"
+        }
+    }
+}

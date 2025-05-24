@@ -1,0 +1,132 @@
+pipeline {
+  agent any
+
+  environment {
+    DOCKERHUB_CREDENTIALS = credentials('dockerhub')
+    ARGO_CREDENTIALS = credentials('argocd')
+    ARGO_SERVER = 'argocd.devops'
+    REPOSITORY_PREFIX = 'your-dockerhub-username' // Thay bằng prefix đúng của bạn
+  }
+
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Check branch or tag') {
+      steps {
+        script {
+          def branch = env.BRANCH_NAME ?: ''
+          def tag = env.GIT_TAG ?: ''
+
+          echo "Branch: ${branch}"
+          echo "Tag: ${tag}"
+
+          if (!(branch.startsWith('rc_') || tag.startsWith('v'))) {
+            echo "Not an rc branch or v tag, skipping build."
+            currentBuild.result = 'SUCCESS'
+            return
+          }
+        }
+      }
+    }
+
+    stage('Checkout GitOps Repo') {
+      steps {
+        dir('gitops-config') { 
+          git url: 'https://github.com/simpleHuy/spring-petclinic-infra', branch: 'master'
+        }
+      }
+    }
+
+    stage('Detect tag version') {
+        steps {
+            script {
+            TAG = sh(script: "git describe --tags --exact-match || echo ''", returnStdout: true).trim()
+            BRANCH_NAME = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+
+            echo "Current branch: ${BRANCH_NAME}"
+            echo "Current tag: ${TAG}"
+
+            def tagPattern = ~/^v\d+\.\d+\.\d+$/
+            def rcBranchPattern = ~/^rc_v\d+\.\d+\.\d+$/
+
+            if (TAG == '') {
+                echo "No git tag found on this commit. Skipping build."
+                currentBuild.result = 'SUCCESS'
+                // Dừng pipeline bằng cách thoát khỏi stage, hoặc set biến để skip tiếp
+                // return để dừng script ở đây, tiếp theo stages sẽ không chạy (nếu bạn thiết kế thêm điều kiện)
+                return
+            } else if (TAG ==~ tagPattern) {
+                VERSION = TAG
+            } else if (BRANCH_NAME ==~ rcBranchPattern) {
+                VERSION = BRANCH_NAME.replace('rc_', '')
+            } else {
+                echo "Neither a valid release tag nor RC branch detected. Skipping build."
+                currentBuild.result = 'SUCCESS'
+                return
+            }
+
+            echo "Using version: ${VERSION}"
+            }
+        }
+    }
+
+
+    stage('Build and Push Docker Images') {
+        when {
+            expression { return env.VERSION != null && env.VERSION != '' }
+        }
+      steps {
+        script {
+          def services = [
+            "spring-petclinic-admin-server",
+            "spring-petclinic-api-gateway",
+            "spring-petclinic-vets-service",
+            "spring-petclinic-visits-service",
+            "spring-petclinic-customers-service",
+            "spring-petclinic-genai-service",
+            "spring-petclinic-config-server",
+            "spring-petclinic-discovery-server"
+          ]
+
+          withCredentials([usernamePassword(
+            credentialsId: 'dockerhub',
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+          )]) {
+            sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
+
+            for (service in services) {
+              dir(service) {
+                sh "../mvnw clean install -P buildDocker -Ddocker.image.prefix=${REPOSITORY_PREFIX} -DskipTests"
+              }
+
+              sh """
+                docker tag ${REPOSITORY_PREFIX}/${service}:latest ${REPOSITORY_PREFIX}/${service}:${VERSION}
+                docker push ${REPOSITORY_PREFIX}/${service}:${VERSION}
+              """
+            }
+          }
+        }
+      }
+    }
+
+    stage('Sync Argo CD') {
+        when {
+            expression { return env.VERSION != null && env.VERSION != '' }
+        }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'argocd', usernameVariable: 'ARGOCD_USER', passwordVariable: 'ARGOCD_PASS')]) {
+          sh """
+            argocd login ${ARGO_SERVER} --username ${ARGOCD_USER} --password ${ARGOCD_PASS} --insecure --grpc-web
+            argocd app sync devops-staging-test
+          """
+        }
+      }
+    }
+  }
+}

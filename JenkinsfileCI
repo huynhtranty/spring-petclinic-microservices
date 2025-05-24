@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+
+    environment {
+        REPOSITORY_PREFIX = 'huynhtranty'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Get Commit ID') {
+            steps {
+                script {
+                    env.COMMIT_ID = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.IMAGE_TAG = env.COMMIT_ID
+                    echo "Commit ID: ${env.IMAGE_TAG}"
+                }
+            }
+        }
+        
+        stage('Detect Changed Services') {
+            steps {
+                script {
+                    sh 'git fetch origin +refs/heads/main:refs/remotes/origin/main'
+
+                    def diffFiles = sh(
+                        script: "git diff --name-only origin/main...HEAD",
+                        returnStdout: true
+                    ).trim().split('\n')
+
+                    def services = [
+                        'spring-petclinic-admin-server',
+                        'spring-petclinic-api-gateway',
+                        'spring-petclinic-config-server',
+                        'spring-petclinic-customers-service',
+                        'spring-petclinic-discovery-server',
+                        'spring-petclinic-genai-service',
+                        'spring-petclinic-vets-service',
+                        'spring-petclinic-visits-service'
+                    ]
+
+                    def changedServices = services.findAll { service ->
+                        diffFiles.any { file -> file.startsWith(service + "/") }
+                    }
+
+                    if (changedServices.isEmpty()) {
+                        echo "No service changes detected."
+                        currentBuild.result = 'SUCCESS'
+                        return
+                    }
+
+                    env.CHANGED_SERVICES = changedServices.join(',')
+                    echo "Changed services: ${env.CHANGED_SERVICES}"
+                }
+            }
+        }
+
+
+        stage('Build & Push Changed Services') {
+            when {
+                expression { return env.CHANGED_SERVICES }
+            }
+            steps {
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
+
+                        for (service in changedServices) {
+                            echo "Building Docker image for ${service} on branch ${env.BRANCH_NAME ?: env.GIT_BRANCH}"
+
+                            dir("${service}") {
+                                sh "../mvnw clean install -P buildDocker -Ddocker.image.prefix=${REPOSITORY_PREFIX} -DskipTests"
+                            }
+
+                            sh """
+                                docker tag ${REPOSITORY_PREFIX}/${service} ${REPOSITORY_PREFIX}/${service}:${env.IMAGE_TAG}
+                                docker push ${REPOSITORY_PREFIX}/${service}:${env.IMAGE_TAG}
+                            """
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Build & push completed for ${env.IMAGE_TAG}"
+        }
+        failure {
+            echo "Build failed."
+        }
+    }
+}
