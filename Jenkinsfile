@@ -1,130 +1,98 @@
-import groovy.json.JsonOutput
-
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'admin-server', defaultValue: 'main', description: 'Branch to build for admin-server')
+        string(name: 'api-gateway', defaultValue: 'main', description: 'Branch to build for api-gateway')
+        string(name: 'config-server', defaultValue: 'main', description: 'Branch to build for config-server')
+        string(name: 'customer-service', defaultValue: 'main', description: 'Branch to build for customer-service')
+        string(name: 'discovery-server', defaultValue: 'main', description: 'Branch to build for discovery-server')
+        string(name: 'genai-service', defaultValue: 'main', description: 'Branch to build for generic-service')
+        string(name: 'vets-service', defaultValue: 'main', description: 'Branch to build for vets-service')
+        string(name: 'visit-service', defaultValue: 'main', description: 'Branch to build for visit-service')
+    }
+
     environment {
-        DOCKER_HUB_REPO = 'hytaty'
-        DOCKERFILE_PATH = 'docker/Dockerfile'
-        PROJECT_VERSION = '3.4.1' // ĐẢM BẢO GIÁ TRỊ NÀY KHỚP VỚI <version> TRONG pom.xml GỐC CỦA BẠN
+        DOCKER_HUB_CREDS = credentials('docker-hub')
+        REPOSITORY_PREFIX = "${DOCKER_HUB_CREDS_USR}"
     }
 
     stages {
+        stage('Initialize') {
+            steps {
+                script {
+                    services = [
+                        'spring-petclinic-admin-server'     : params['admin-server'],
+                        'spring-petclinic-api-gateway'      : params['api-gateway'],
+                        'spring-petclinic-config-server'    : params['config-server'],
+                        'spring-petclinic-customers-service': params['customer-service'],
+                        'spring-petclinic-discovery-server' : params['discovery-server'],
+                        'spring-petclinic-genai-service'    : params['genai-service'],
+                        'spring-petclinic-vets-service'     : params['vets-service'],
+                        'spring-petclinic-visits-service'   : params['visit-service']
+                    ]
+                    COMMIT_ID = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
+                checkout scm
                 script {
-                    checkout scm
-
-                    def servicePortsMap = [
-                        'spring-petclinic-admin-server': '9090',
-                        'spring-petclinic-api-gateway': '8080',
-                        'spring-petclinic-config-server': '8888',
-                        'spring-petclinic-customers-service': '8081',
-                        'spring-petclinic-discovery-server': '8761',
-                        'spring-petclinic-genai-service': '8084',
-                        'spring-petclinic-vets-service': '8083',
-                        'spring-petclinic-visits-service': '8082'
-                    ]
-                    env.SERVICE_PORTS_JSON = JsonOutput.toJson(servicePortsMap)
-
-                    env.COMMIT_ID = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                    env.BRANCH_NAME_CLEAN = env.BRANCH_NAME ? env.BRANCH_NAME.replaceAll('[^a-zA-Z0-9.-]+', '_') : 'main'
-
-                    echo "--- Starting CI Pipeline for microservices ---"
-                    echo "Current Branch: ${env.BRANCH_NAME}"
-                    echo "Commit ID: ${env.COMMIT_ID}"
-                }
-            }
-        }
-
-        stage('Build All JARs') {
-            steps {
-                script {
-                    sh '''
-                        echo "Building all microservices JARs with Maven..."
-                        chmod +x mvnw
-                        ./mvnw clean install -DskipTests
-                    '''
-                    echo "All microservices JARs built successfully."
-                }
-            }
-        }
-
-        stage('Build and Push Docker Images') {
-            steps {
-                script {
-                    def VALID_SERVICES = [
-                        'spring-petclinic-admin-server',
-                        'spring-petclinic-api-gateway',
-                        'spring-petclinic-config-server',
-                        'spring-petclinic-customers-service',
-                        'spring-petclinic-discovery-server',
-                        'spring-petclinic-genai-service',
-                        'spring-petclinic-vets-service',
-                        'spring-petclinic-visits-service'
-                    ]
-
-                    def servicesFound = findFiles(glob: '*/pom.xml')
-                    def projectServiceNames = servicesFound.collect { fileWrapper ->
-                        return fileWrapper.path.split('/')[0]
-                    }.unique()
-
-                    def servicesToProcess = projectServiceNames.findAll { serviceName ->
-                        VALID_SERVICES.contains(serviceName)
-                    }
-
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
-                        echo "Logged into Docker Hub."
-
-                        def servicePorts = readJSON text: env.SERVICE_PORTS_JSON
-
-                        for (def serviceName : servicesToProcess) {
-                            // Tên file JAR đầy đủ
-                            def jarFileName = "${serviceName}-${env.PROJECT_VERSION}.jar"
-                            
-                            // Đường dẫn đầy đủ của JAR từ thư mục gốc của workspace
-                            def jarPathInContext = "${serviceName}/target/${jarFileName}"
-
-                            // Cổng exposed cho service này
-                            def exposedPort = servicePorts[serviceName]
-                            if (!exposedPort) {
-                                error "Error: Port not defined for service ${serviceName} in SERVICE_PORTS_JSON. Please update Jenkinsfile."
-                            }
-
-                            def targetImageRepo = "${env.DOCKER_HUB_REPO}/${serviceName.toLowerCase()}"
-                            def commitIdTag = env.COMMIT_ID
-
-                            echo "--- Processing image for ${serviceName} ---"
-                            echo "Building image: ${targetImageRepo}:${commitIdTag}"
-                            echo "Using Dockerfile: ${env.DOCKERFILE_PATH}"
-                            echo "JAR Source Path: ${jarPathInContext}, EXPOSED_PORT: ${exposedPort}" // Log đường dẫn JAR để debug
-
-                            sh "docker build -t ${targetImageRepo}:${commitIdTag} " +
-                               "-f ${env.DOCKERFILE_PATH} " +
-                               "--build-arg JAR_FILE_PATH=${jarPathInContext} " + // <--- TRUYỀN ĐƯỜNG DẪN ĐẦY ĐỦ CỦA JAR
-                               "--build-arg EXPOSED_PORT=${exposedPort} ."
-                            
-                            echo "Built: ${targetImageRepo}:${commitIdTag}"
-
-                            echo "--- Pushing image to Docker Hub ---"
-                            sh "docker push ${targetImageRepo}:${commitIdTag}"
-                            echo "Pushed: ${targetImageRepo}:${commitIdTag}"
-
-                            if ("${env.BRANCH_NAME_CLEAN}" == "main") {
-                                echo "Branch is 'main', pushing 'latest' and 'main' tags as well."
-
-                                sh "docker tag ${targetImageRepo}:${commitIdTag} ${targetImageRepo}:latest"
-                                sh "docker push ${targetImageRepo}:latest"
-                                echo "Pushed: ${targetImageRepo}:latest"
-
-                                if (commitIdTag != "main") {
-                                   sh "docker tag ${targetImageRepo}:${commitIdTag} ${targetImageRepo}:main"
-                                   sh "docker push ${targetImageRepo}:main"
-                                   echo "Pushed: ${targetImageRepo}:main"
-                                }
-                            }
+                    services.each { service, branch ->
+                        if (branch != 'main') {
+                            echo "Using branch ${branch} for ${service}"
+                            sh "git checkout ${branch} -- ${service} || echo 'Failed to checkout ${branch} for ${service}'"
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Build Images') {
+            steps {
+                script {
+                    services.each { service, branch ->
+                        echo "Building Docker image for ${service} on branch ${branch}"
+
+                        sh """
+                            cd ${service}
+                            ../mvnw clean install -P buildDocker -Ddocker.image.prefix=${REPOSITORY_PREFIX} -DskipTests
+                        """
+
+                        def tag = (branch == 'main') ? 'latest' : COMMIT_ID
+
+                        sh """
+                            docker tag ${REPOSITORY_PREFIX}/${service} ${REPOSITORY_PREFIX}/${service}:${tag}
+                            echo "Tagged ${service} with ${tag}"
+                        """
+
+                        def imageExists = sh(script: "docker images -q ${REPOSITORY_PREFIX}/${service}:${tag}", returnStatus: true) == 0
+                        if (!imageExists) {
+                            error "Docker image for ${service} was not built successfully."
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Push Images') {
+            steps {
+                script {
+                    sh """
+                        echo "${DOCKER_HUB_CREDS_PSW}" | docker login -u "${DOCKER_HUB_CREDS_USR}" --password-stdin
+                        echo "Logged in to Docker Hub"
+                    """
+
+                    services.each { service, branch ->
+                        def tag = (branch == 'main') ? 'latest' : COMMIT_ID
+                        echo "Pushing Docker image for ${service} with tag ${tag}"
+
+                        sh """
+                            docker push ${REPOSITORY_PREFIX}/${service}:${tag}
+                            echo "Pushed ${service} with tag ${tag}"
+                        """
                     }
                 }
             }
@@ -132,15 +100,11 @@ pipeline {
     }
 
     post {
-        always {
-            sh "docker logout"
-            cleanWs()
-        }
         success {
-            echo "CI Pipeline completed successfully for all microservices images."
+            echo "Pipeline completed successfully!"
         }
         failure {
-            echo "CI Pipeline failed for microservices images build/push."
+            echo "Pipeline failed!"
         }
     }
 }
