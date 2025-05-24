@@ -6,6 +6,16 @@ pipeline {
         NAMESPACE = "dev-review"
     }
 
+    parameters {
+        string(name: 'admin-server', defaultValue: 'main', description: 'Branch to build for admin-server')
+        string(name: 'api-gateway', defaultValue: 'main', description: 'Branch to build for api-gateway')
+        string(name: 'config-server', defaultValue: 'main', description: 'Branch to build for config-server')
+        string(name: 'customer-service', defaultValue: 'main', description: 'Branch to build for customer-service')
+        string(name: 'discovery-server', defaultValue: 'main', description: 'Branch to build for discovery-server')
+        string(name: 'genai-service', defaultValue: 'main', description: 'Branch to build for generic-service')
+        string(name: 'vets-service', defaultValue: 'main', description: 'Branch to build for vets-service')
+        string(name: 'visit-service', defaultValue: 'main', description: 'Branch to build for visit-service')
+    }
     stages {
         stage('test k8s') {
             steps {
