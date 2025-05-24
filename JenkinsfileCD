@@ -89,12 +89,6 @@ pipeline {
                     script {
                         env.KUBECONFIG = "${KUBECONFIG_FILE}" // Đảm bảo biến KUBECONFIG được đặt
 
-                        // Lấy IP Public của node (master node)
-                        def nodeExternalIP = sh(
-                            script: "kubectl get nodes -o jsonpath='{.items[?(@.status.addresses[?(@.type==\"ExternalIP\")])].status.addresses[?(@.type==\"ExternalIP\")].address}'",
-                            returnStdout: true
-                        ).trim()
-
                         def nodeExternalIP = sh(
                             script: "kubectl get node k8s-master -o jsonpath='{.status.addresses[?(@.type==\"ExternalIP\")].address}'",
                             returnStdout: true,
