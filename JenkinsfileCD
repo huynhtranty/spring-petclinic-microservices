@@ -14,7 +14,7 @@ pipeline {
         string(name: 'discovery-server', defaultValue: 'main', description: 'Branch to build for discovery-server')
         string(name: 'genai-service', defaultValue: 'main', description: 'Branch to build for generic-service')
         string(name: 'vets-service', defaultValue: 'main', description: 'Branch to build for vets-service')
-        string(name: 'visit-service', defaultValue: 'main', description: 'Branch to build for visit-service')
+        string(name: 'visits-service', defaultValue: 'main', description: 'Branch to build for visit-service')
     }
     stages {
         stage('test k8s') {
