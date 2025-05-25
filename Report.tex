@@ -1,0 +1,538 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[vietnamese]{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+
+% Thiết lập trang
+\geometry{left=3cm,right=2cm,top=3cm,bottom=2cm}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyfoot[C]{\thepage}
+
+% Thiết lập màu sắc cho code
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+% Thiết lập style cho code
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+\begin{document}
+
+% Trang bìa
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    
+    \Huge
+    \textbf{BÁO CÁO DỰ ÁN}
+    
+    \vspace{0.5cm}
+    \LARGE
+    XÂY DỰNG HỆ THỐNG CI/CD VỚI KUBERNETES
+    
+    \vspace{1.5cm}
+    
+    \textbf{Môn học:} [Tên môn học]\\
+    \textbf{Giảng viên:} [Tên giảng viên]
+    
+    \vfill
+    
+    \Large
+    \textbf{Sinh viên thực hiện:}\\
+    [Họ và tên sinh viên]\\
+    [Mã số sinh viên]\\
+    [Lớp]
+    
+    \vfill
+    
+    \Large
+    
+\end{titlepage}
+
+% Mục lục
+\tableofcontents
+\newpage
+
+% Danh sách hình ảnh
+\listoffigures
+\newpage
+
+% Nội dung chính
+\section{Giới thiệu}
+
+\subsection{Tổng quan dự án}
+Dự án này tập trung vào việc xây dựng một hệ thống CI/CD hoàn chỉnh sử dụng Jenkins và Kubernetes để tự động hóa quá trình build, test và deploy ứng dụng microservices.
+
+\subsection{Mục tiêu}
+\begin{itemize}
+    \item Xây dựng Kubernetes cluster với 1 Master node và 1 Worker node
+    \item Thiết lập pipeline CI để tự động build image từ mọi branch
+    \item Tạo job CD cho developer test code trên môi trường tương tự production
+    \item Triển khai hệ thống quản lý môi trường dev và staging
+    \item Tự động hóa hoàn toàn quy trình phát triển phần mềm
+\end{itemize}
+
+\subsection{Công nghệ sử dụng}
+\begin{itemize}
+    \item \textbf{Container:} Docker
+    \item \textbf{Orchestration:} Kubernetes (hoặc Minikube)
+    \item \textbf{CI/CD:} Jenkins
+    \item \textbf{Registry:} Docker Hub
+    \item \textbf{Version Control:} Git
+    \item \textbf{Deployment:} YAML manifests
+\end{itemize}
+
+\section{Thiết kế hệ thống}
+
+\subsection{Kiến trúc tổng quan}
+[Mô tả kiến trúc tổng quan của hệ thống, bao gồm sơ đồ]
+
+\begin{figure}[h]
+    \centering
+    % \includegraphics[width=0.8\textwidth]{architecture_diagram.png}
+    \caption{Kiến trúc tổng quan hệ thống CI/CD}
+    \label{fig:architecture}
+\end{figure}
+
+\subsection{Kubernetes Cluster}
+\subsubsection{Cấu hình cluster}
+\begin{itemize}
+    \item 1 Master node: quản lý cluster, API server, scheduler
+    \item 1 Worker node: chạy workload, pods
+    \item Networking: [CNI plugin sử dụng]
+    \item Storage: [Storage class và PV configuration]
+\end{itemize}
+
+\subsubsection{Namespace}
+\begin{itemize}
+    \item \texttt{default}: môi trường developer testing
+    \item \texttt{dev}: môi trường development tự động deploy từ main branch
+    \item \texttt{staging}: môi trường staging deploy từ release tags
+\end{itemize}
+
+\section{Triển khai}
+
+\subsection{Cài đặt Kubernetes Cluster}
+
+\subsubsection{Sử dụng Minikube}
+\begin{lstlisting}[language=bash, caption=Khởi tạo Minikube cluster]
+# Cài đặt Minikube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+# Khởi động cluster
+minikube start --nodes 2 --driver=virtualbox
+minikube addons enable ingress
+\end{lstlisting}
+
+\subsubsection{Kiểm tra cluster}
+\begin{lstlisting}[language=bash, caption=Kiểm tra trạng thái cluster]
+kubectl get nodes
+kubectl get pods --all-namespaces
+\end{lstlisting}
+
+\subsection{Thiết lập Jenkins}
+
+\subsubsection{Cài đặt Jenkins}
+\begin{lstlisting}[language=bash, caption=Cài đặt Jenkins trên Ubuntu]
+# Thêm repository Jenkins
+wget -q -O - https://pkg.jenkins.io/debian/jenkins.io.key | sudo apt-key add -
+sudo sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+
+# Cài đặt Jenkins
+sudo apt update
+sudo apt install jenkins
+
+# Khởi động Jenkins
+sudo systemctl start jenkins
+sudo systemctl enable jenkins
+\end{lstlisting}
+
+\subsubsection{Cấu hình Jenkins}
+\begin{itemize}
+    \item Cài đặt plugins cần thiết: Git, Docker, Kubernetes
+    \item Cấu hình credentials cho Docker Hub và Kubernetes
+    \item Thiết lập Webhook với Git repository
+\end{itemize}
+
+\subsection{Pipeline CI - Continuous Integration}
+
+\subsubsection{Jenkinsfile cho CI}
+\begin{lstlisting}[language=groovy, caption=Pipeline CI tự động build image]
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-credentials')
+        IMAGE_NAME = 'your-dockerhub/service-name'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: env.BRANCH_NAME, 
+                    url: 'https://github.com/your-repo/project.git'
+            }
+        }
+        
+        stage('Build Image') {
+            steps {
+                script {
+                    def commitId = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+                    def imageTag = "${IMAGE_NAME}:${commitId}"
+                    
+                    sh "docker build -t ${imageTag} ."
+                    sh "docker tag ${imageTag} ${IMAGE_NAME}:${env.BRANCH_NAME}"
+                }
+            }
+        }
+        
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    def commitId = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+                    def imageTag = "${IMAGE_NAME}:${commitId}"
+                    
+                    sh "echo ${DOCKER_HUB_CREDENTIALS_PSW} | docker login -u ${DOCKER_HUB_CREDENTIALS_USR} --password-stdin"
+                    sh "docker push ${imageTag}"
+                    sh "docker push ${IMAGE_NAME}:${env.BRANCH_NAME}"
+                }
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Job CD - Developer Build}
+
+\subsubsection{Cấu hình Job}
+Job \texttt{developer\_build} cho phép developer chọn branch cần test:
+
+\begin{lstlisting}[language=groovy, caption=Job developer\_build với parameters]
+pipeline {
+    agent any
+    
+    parameters {
+        choice(
+            name: 'VETS_SERVICE_BRANCH',
+            choices: ['main', 'dev_vets_service', 'feature_branch'],
+            description: 'Branch for vets-service'
+        )
+        choice(
+            name: 'CUSTOMERS_SERVICE_BRANCH', 
+            choices: ['main', 'dev_customers_service'],
+            description: 'Branch for customers-service'
+        )
+        // Thêm các service khác...
+    }
+    
+    stages {
+        stage('Deploy Services') {
+            steps {
+                script {
+                    // Deploy từng service với branch được chọn
+                    deployService('vets-service', params.VETS_SERVICE_BRANCH)
+                    deployService('customers-service', params.CUSTOMERS_SERVICE_BRANCH)
+                }
+            }
+        }
+        
+        stage('Expose Services') {
+            steps {
+                script {
+                    // Tạo NodePort services
+                    sh '''
+                        kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: vets-service-nodeport
+spec:
+  type: NodePort
+  selector:
+    app: vets-service
+  ports:
+  - port: 8080
+    nodePort: 30080
+EOF
+                    '''
+                }
+            }
+        }
+        
+        stage('Output Access Info') {
+            steps {
+                script {
+                    def workerNodeIP = sh(returnStdout: true, script: 'kubectl get nodes -o wide | grep worker | awk \'{print $6}\'').trim()
+                    echo "Access your application at: http://${workerNodeIP}:30080"
+                    echo "Add this to your hosts file: ${workerNodeIP} dev.yourapp.local"
+                }
+            }
+        }
+    }
+}
+
+def deployService(serviceName, branch) {
+    def commitId = getCommitId(serviceName, branch)
+    def imageTag = branch == 'main' ? 'latest' : commitId
+    
+    sh """
+        kubectl set image deployment/${serviceName} ${serviceName}=your-dockerhub/${serviceName}:${imageTag}
+        kubectl rollout status deployment/${serviceName}
+    """
+}
+
+def getCommitId(serviceName, branch) {
+    return sh(returnStdout: true, script: "curl -s https://api.github.com/repos/your-org/${serviceName}/commits/${branch} | jq -r '.sha[0:7]'").trim()
+}
+\end{lstlisting}
+
+\subsection{Job Cleanup}
+
+\begin{lstlisting}[language=groovy, caption=Job cleanup để xóa deployment]
+pipeline {
+    agent any
+    
+    parameters {
+        booleanParam(name: 'CONFIRM_DELETE', defaultValue: false, description: 'Confirm deletion of developer environment')
+    }
+    
+    stages {
+        stage('Cleanup') {
+            when {
+                params.CONFIRM_DELETE == true
+            }
+            steps {
+                sh '''
+                    kubectl delete deployment --all
+                    kubectl delete service --all
+                    kubectl delete configmap --all
+                    kubectl delete secret --all
+                '''
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Triển khai nâng cao}
+
+\subsection{Môi trường Dev - Auto Deploy từ Main}
+
+\begin{lstlisting}[language=groovy, caption=Pipeline auto deploy dev environment]
+pipeline {
+    agent any
+    
+    triggers {
+        pollSCM('H/5 * * * *') // Check every 5 minutes
+    }
+    
+    stages {
+        stage('Deploy to Dev') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    sh '''
+                        kubectl apply -f k8s/dev/ -n dev
+                        kubectl set image deployment/all-services *=your-dockerhub/*:latest -n dev
+                    '''
+                }
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Môi trường Staging - Deploy từ Release Tags}
+
+\begin{lstlisting}[language=groovy, caption=Pipeline staging với release tags]
+pipeline {
+    agent any
+    
+    triggers {
+        pollSCM('H * * * *') // Check for new tags every hour
+    }
+    
+    stages {
+        stage('Check for New Tags') {
+            steps {
+                script {
+                    def latestTag = sh(returnStdout: true, script: 'git describe --tags --abbrev=0').trim()
+                    env.RELEASE_TAG = latestTag
+                }
+            }
+        }
+        
+        stage('Build Release Images') {
+            steps {
+                script {
+                    sh """
+                        docker build -t your-dockerhub/service:${env.RELEASE_TAG} .
+                        docker push your-dockerhub/service:${env.RELEASE_TAG}
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy to Staging') {
+            steps {
+                sh """
+                    kubectl set image deployment/all-services *=your-dockerhub/*:${env.RELEASE_TAG} -n staging
+                    kubectl rollout status deployment/all-services -n staging
+                """
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Kubernetes Manifests}
+
+\subsection{Deployment YAML}
+\begin{lstlisting}[language=yaml, caption=Example deployment manifest]
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vets-service
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vets-service
+  template:
+    metadata:
+      labels:
+        app: vets-service
+    spec:
+      containers:
+      - name: vets-service
+        image: your-dockerhub/vets-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "k8s"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vets-service
+spec:
+  selector:
+    app: vets-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
+\end{lstlisting}
+
+\section{Kết quả và Đánh giá}
+
+\subsection{Kết quả đạt được}
+\begin{itemize}
+    \item Xây dựng thành công Kubernetes cluster với 1 master và 1 worker node
+    \item Triển khai pipeline CI tự động build image cho mọi branch với tag là commit ID
+    \item Tạo job developer\_build cho phép developer test code linh hoạt
+    \item Thiết lập môi trường dev và staging với quy trình deploy tự động
+    \item Cung cấp domain và port để developer có thể truy cập test
+\end{itemize}
+
+\subsection{Workflow hoạt động}
+\begin{enumerate}
+    \item Developer commit code vào branch (ví dụ: dev\_vets\_service)
+    \item CI pipeline tự động trigger, build image với tag = commit ID
+    \item Image được push lên Docker Hub
+    \item Developer sử dụng job developer\_build, chọn branch dev\_vets\_service cho vets-service
+    \item Hệ thống deploy vets-service với image mới, các service khác dùng image latest
+    \item Developer truy cập qua NodePort để test
+    \item Sau khi test xong, sử dụng cleanup job để xóa environment
+\end{enumerate}
+
+\subsection{Ưu điểm}
+\begin{itemize}
+    \item Tự động hóa hoàn toàn quy trình build và deploy
+    \item Linh hoạt trong việc test từng service riêng biệt
+    \item Quản lý môi trường dev/staging hiệu quả
+    \item Giảm thời gian và công sức manual deployment
+    \item Cung cấp traceability qua commit ID tagging
+\end{itemize}
+
+\subsection{Hạn chế và cải tiến}
+\begin{itemize}
+    \item Chưa tích hợp automated testing trong pipeline
+    \item Thiếu monitoring và alerting (Prometheus/Grafana)
+    \item Chưa có rollback strategy tự động
+    \item Cần bổ sung security scanning cho images
+    \item Có thể tối ưu resource management
+\end{itemize}
+
+\section{Kết luận}
+
+Dự án đã thành công xây dựng một hệ thống CI/CD hoàn chỉnh với Kubernetes, đáp ứng đầy đủ các yêu cầu đặt ra. Hệ thống cho phép developer làm việc hiệu quả với khả năng test code linh hoạt, đồng thời tự động hóa quy trình deployment cho các môi trường khác nhau.
+
+Kinh nghiệm thu được từ dự án này có thể áp dụng vào các dự án thực tế, với một số cải tiến về monitoring, security và testing để đạt production-ready standard.
+
+\section{Tài liệu tham khảo}
+
+\begin{enumerate}
+    \item Kubernetes Official Documentation: \url{https://kubernetes.io/docs/}
+    \item Jenkins Pipeline Documentation: \url{https://www.jenkins.io/doc/book/pipeline/}
+    \item Docker Hub Registry Guide: \url{https://docs.docker.com/docker-hub/}
+    \item Best Practices for CI/CD with Kubernetes
+    \item Microservices Deployment Patterns
+\end{enumerate}
+
+\appendix
+\section{Phụ lục}
+
+\subsection{Scripts và Commands}
+[Đặt các script shell, commands kubectl quan trọng]
+
+\subsection{Screenshots}
+[Đặt các screenshot của Jenkins jobs, Kubernetes dashboard, etc.]
+
+\subsection{Configuration Files}
+[Đặt các file cấu hình đầy đủ]
+
+\end{document}
