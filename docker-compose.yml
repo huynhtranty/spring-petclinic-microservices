@@ -162,20 +162,20 @@ services:
 
   
   loki:
-      image: grafana/loki:2.9.2
-      container_name: loki
-      user: "0:0"
-      ports:
-        - "3100:3100"
-      volumes:
-        - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro  # Read-only mount
-        - ./data/loki:/loki  # Bind mount cho data
-      command: -config.file=/etc/loki/local-config.yaml
+    image: grafana/loki:2.9.2
+    container_name: loki
+    user: "0:0"
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro  # Read-only mount
+      - ./data/loki:/loki  # Bind mount cho data
+    command: -config.file=/etc/loki/local-config.yaml
 
   promtail:
     image: grafana/promtail:2.9.2
     container_name: promtail
     volumes:
-    - /var/log:/var/log
+    - /var/lib/docker/containers:/var/lib/docker/containers:ro
     - ./promtail/promtail-config.yaml:/etc/promtail/config.yml
 

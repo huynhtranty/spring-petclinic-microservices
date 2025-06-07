@@ -51,7 +51,7 @@ spring:
 
 spring:
   zipkin:
-    base-url: http://zipkin:9411
+    base-url: http://tracing-server:9411
   sleuth:
     sampler:
       probability: 1.0
