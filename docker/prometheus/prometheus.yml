@@ -30,3 +30,7 @@ scrape_configs:
   metrics_path: /actuator/prometheus
   static_configs:
   - targets: ['vets-service:8083']
+
+# rules file
+rule_files:
+  - /etc/prometheus/rules/prometheus-rules.yml
