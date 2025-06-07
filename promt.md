@@ -1,25 +1,28 @@
 ### 1. cài đặt
 ``` bash
-docker build -t custom-prometheus -f docker/prometheus/Dockerfile docker/prometheus
-docker run -d -p 9090:9090 --name prometheus custom-prometheus
-````
+docker compose up
+```
+** Thêm image loki và promtail vào docker compose**
+``` yml
+loki:
+  image: grafana/loki:2.9.2
+  container_name: loki
+  user: "0:0"
+  ports:
+    - "3100:3100"
+  volumes:
+    - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro  # Read-only mount
+    - ./data/loki:/loki  # Bind mount cho data
+  command: -config.file=/etc/loki/local-config.yaml
 
-``` bash
-docker build -t custom-grafana -f docker/grafana/Dockerfile docker/grafana
-docker run -d -p 3000:3000 --name grafana custom-grafana
+promtail:
+  image: grafana/promtail:2.9.2
+  container_name: promtail
+  volumes:
+  - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  - ./promtail/promtail-config.yaml:/etc/promtail/config.yml
 
-````
-
-``` bash
-docker run -d --name zipkin -p 9411:9411 openzipkin/zipkin
-````
-
-``` bash
-docker run -d --name=loki -p 3100:3100 \
-  -v $(pwd)/loki-config.yaml:/etc/loki/local-config.yaml \
-  grafana/loki:2.9.2 \
-  -config.file=/etc/loki/local-config.yaml
-````
+```
  **loki-config.yaml**
 ``` yaml
 auth_enabled: false
@@ -73,7 +76,7 @@ table_manager:
 ``` yaml
 spring:
   zipkin:
-    base-url: http://zipkin:9411
+    base-url: http://tracing-server:9411
   sleuth:
     sampler:
       probability: 1.0
@@ -81,27 +84,12 @@ spring:
 
 **Cấu hình pom.xml**
 ``` xml
-<dependency>
-  <groupId>org.springframework.cloud</groupId>
-  <artifactId>spring-cloud-starter-zipkin</artifactId>
-</dependency>
-<dependency>
-  <groupId>org.springframework.cloud</groupId>
-  <artifactId>spring-cloud-starter-sleuth</artifactId>
-</dependency>
-
+Đã có sẵn
 ```
 
 ### 3. Gửi metrics lên Prometheus
 ``` xml
-<dependency>
-  <groupId>org.springframework.boot</groupId>
-  <artifactId>spring-boot-starter-actuator</artifactId>
-</dependency>
-<dependency>
-  <groupId>io.micrometer</groupId>
-  <artifactId>micrometer-registry-prometheus</artifactId>
-</dependency>
+Đã có sẵn
 
 ```
 **application.yml**
@@ -123,15 +111,6 @@ http://<service>:port/actuator/prometheus
 
 
 ### 4: Gửi log lên Grafana Loki
-**Cài đặt**
-``` bash
-docker run -d --name promtail \
-  -v /var/log:/var/log \
-  -v $(pwd)/promtail-config.yaml:/etc/promtail/config.yml \
-  grafana/promtail:2.9.2 \
-  -config.file=/etc/promtail/config.yml
-
-```
 **File promtail-config.yaml**
 ``` yaml
 server:
@@ -142,7 +121,7 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  - url: http://loki:3100/loki/api/v1/push
+  - url: http://tracing-server:3100/loki/api/v1/push
 
 scrape_configs:
   - job_name: system
@@ -160,7 +139,7 @@ scrape_configs:
 - name: Loki
   type: loki
   access: proxy
-  url: http://loki:3100
+  url: http://tracing-server:3100
   is_default: false
   editable: true
 ```
@@ -181,6 +160,7 @@ rate(http_server_requests_seconds_count{status=~"2.."}[1m])
 rate(http_server_requests_seconds_count{status=~"5.."}[1m])
 
 ```
+**Thêm file `alert-rules.yaml`** trong `docker\prometheus` folder  
 
 ### 6. Hiển thị log
 Kiểm tra: vào Grafana > Explore > chọn Loki > xem log theo job/service.
@@ -267,22 +247,5 @@ done
 
 ```
 
-### Sửa file docker-compose.yaml
-``` bash
-loki:
-    image: grafana/loki:2.9.2
-    container_name: loki
-    ports:
-        - "3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml
-    volumes:
-        - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
-
-promtail:
-    image: grafana/promtail:2.9.2
-    container_name: promtail
-    volumes:
-    - /var/log:/var/log
-    - ./promtail/promtail-config.yaml:/etc/promtail/config.yml
-
-```
+### Nâng cấp phiên bản grafana
+10.2.3 trong file Dockerfile của folder `docker\grafana`
