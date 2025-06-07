@@ -19,3 +19,19 @@ spring:
       on-profile: docker
     import: configserver:http://config-server:8888
 
+spring:
+  zipkin:
+    base-url: http://zipkin:9411
+  sleuth:
+    sampler:
+      probability: 1.0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true

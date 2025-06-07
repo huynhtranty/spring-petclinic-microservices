@@ -33,4 +33,4 @@ scrape_configs:
 
 # rules file
 rule_files:
-  - /etc/prometheus/rules/prometheus-rules.yml
+  - "alert.rules.yml"
