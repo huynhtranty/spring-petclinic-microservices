@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: prometheus-server
-  type: NodePort
+  type: LoadBalancer
   ports:
   - port: 9091
     targetPort: 9091

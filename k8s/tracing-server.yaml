@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: tracing-server
-  type: NodePort
+  type: LoadBalancer
   ports:
   - port: 9411
     targetPort: 9411

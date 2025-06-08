@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: loki
-  type: NodePort
+  type: LoadBalancer
   ports:
   - port: 3100
     targetPort: 3100

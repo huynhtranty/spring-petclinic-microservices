@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: vets-service
-  type: NodePort
+  type: LoadBalancer
   ports:
   - port: 8083
     targetPort: 8083

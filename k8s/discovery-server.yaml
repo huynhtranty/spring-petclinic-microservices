@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: discovery-server
-  type: NodePort
+  type: LoadBalancer
   ports:
   - port: 8761
     targetPort: 8761

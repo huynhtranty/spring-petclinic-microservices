@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: admin-server
-  type: NodePort
+  type: LoadBalancer
   ports:
   - port: 9090
     targetPort: 9090

@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: api-gateway
-  type: NodePort
+  type: LoadBalancer
   ports:
   - port: 8080
     targetPort: 8080

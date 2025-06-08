@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: visits-service
-  type: NodePort
+  type: LoadBalancer
   ports:
   - port: 8082
     targetPort: 8082
