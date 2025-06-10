@@ -20,17 +20,14 @@ spec:
         args:
           - -config.file=/etc/promtail/promtail-config.yaml
         volumeMounts:
-        - name: varlog
-          mountPath: /var/log
         - name: containers
           mountPath: /var/lib/docker/containers
           readOnly: true
         - name: config
-          mountPath: /etc/promtail
+          mountPath: /etc/promtail/promtail-config.yaml
+          subPath: promtail-config.yaml
+        
       volumes:
-      - name: varlog
-        hostPath:
-          path: /var/log
       - name: containers
         hostPath:
           path: /var/lib/docker/containers
