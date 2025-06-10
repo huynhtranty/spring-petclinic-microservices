@@ -9,10 +9,10 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  - job_name: container-logs
+  - job_name: kubernetes-logs
     static_configs:
       - targets:
           - localhost
         labels:
-          job: varlogs
+          job: kubernetes
           __path__: /var/lib/docker/containers/*/*.log
