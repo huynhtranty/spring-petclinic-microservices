@@ -24,13 +24,11 @@ spec:
           mountPath: /var/lib/grafana/dashboards
       volumes:
       - name: grafana-provisioning
-        hostPath:
-          path: /etc/docker/grafana/provisioning
-          type: Directory
+        configMap:
+          name: grafana-provisioning
       - name: grafana-dashboards
-        hostPath:
-          path: /etc/docker/grafana/dashboards
-          type: Directory
+        configMap:
+          name: grafana-dashboards
 
 ---
 apiVersion: v1
