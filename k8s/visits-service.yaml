@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: visits-service
-  type: LoadBalancer
+  type: ClusterIP
   ports:
   - port: 8082
     targetPort: 8082

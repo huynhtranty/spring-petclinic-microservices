@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: discovery-server
-  type: LoadBalancer
+  type: ClusterIP
   ports:
   - port: 8761
     targetPort: 8761

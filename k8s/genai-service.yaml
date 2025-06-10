@@ -27,7 +27,7 @@ metadata:
 spec:
   selector:
     app: genai-service
-  type: LoadBalancer
+  type: ClusterIP
   ports:
   - port: 8084
     targetPort: 8084
