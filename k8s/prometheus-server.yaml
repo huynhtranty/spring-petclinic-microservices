@@ -16,6 +16,10 @@ spec:
       - name: prometheus-server
         image: prom/prometheus
         imagePullPolicy: IfNotPresent
+        args:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus"
+          - "--web.listen-address=:9091"
         ports:
         - containerPort: 9091
 ---
