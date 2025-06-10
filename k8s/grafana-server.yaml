@@ -25,11 +25,11 @@ spec:
       volumes:
       - name: grafana-provisioning
         hostPath:
-          path: /etc/grafana/provisioning
+          path: /etc/docker/grafana/provisioning
           type: Directory
       - name: grafana-dashboards
         hostPath:
-          path: /etc/grafana/dashboards
+          path: /etc/docker/grafana/dashboards
           type: Directory
 
 ---
