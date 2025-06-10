@@ -18,6 +18,9 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8084
+        env:
+        - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+          value: "true"
 ---
 
 apiVersion: v1

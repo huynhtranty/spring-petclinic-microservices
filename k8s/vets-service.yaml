@@ -19,8 +19,9 @@ spec:
           ports:
           - containerPort: 8083
           env:
-          - name: CONFIG_SERVER_URL
-            value: http://config-server:8888
+          - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+            value: "true"
+
 
 ---
 apiVersion: v1
