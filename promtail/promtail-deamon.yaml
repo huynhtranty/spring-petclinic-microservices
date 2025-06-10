@@ -20,7 +20,8 @@ spec:
             - -config.file=/etc/promtail/promtail.yaml
           volumeMounts:
             - name: config
-              mountPath: /etc/promtail
+              mountPath: /etc/promtail/promtail.yaml
+              subPath: promtail.yaml
             - name: docker-logs
               mountPath: /var/lib/docker/containers
               readOnly: true
