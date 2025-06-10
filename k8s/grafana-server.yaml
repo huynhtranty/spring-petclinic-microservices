@@ -6,40 +6,42 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: grafana-server
+      app: grafana
   template:
     metadata:
       labels:
-        app: grafana-server
+        app: grafana
     spec:
       containers:
-      - name: grafana-server
-        image: grafana/grafana
-        imagePullPolicy: IfNotPresent
+      - name: grafana
+        image: grafana/grafana:latest
         ports:
         - containerPort: 3000
-        env:
-        - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
-          value: "true"
         volumeMounts:
-        - name: all
-          mountPath: /etc/grafana/provisioning/datasources
-          readOnly: true
+        - name: grafana-provisioning
+          mountPath: /etc/grafana/provisioning
+        - name: grafana-dashboards
+          mountPath: /var/lib/grafana/dashboards
       volumes:
-      - name: all
-        configMap:
-          name: datasource-configmap
+      - name: grafana-provisioning
+        hostPath:
+          path: /etc/grafana/provisioning
+          type: Directory
+      - name: grafana-dashboards
+        hostPath:
+          path: /etc/grafana/dashboards
+          type: Directory
 
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
-  name: grafana-server
+  name: grafana-service
 spec:
-  selector:
-    app: grafana-server
   type: LoadBalancer
   ports:
   - port: 3000
     targetPort: 3000
+    nodePort: 30030
+  selector:
+    app: grafana

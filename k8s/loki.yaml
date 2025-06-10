@@ -21,6 +21,7 @@ spec:
         env:
         - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
           value: "true"
+          
 
 ---
 

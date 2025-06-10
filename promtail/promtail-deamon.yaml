@@ -21,7 +21,7 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/promtail/promtail.yaml
-              subPath: promtail.yaml    # ⬅️ KHỚP với key trong ConfigMap
+              subPath: promtail.yaml
             - name: docker-logs
               mountPath: /var/lib/docker/containers
               readOnly: true
