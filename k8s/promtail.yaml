@@ -1,10 +1,9 @@
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: promtail
-  labels:
-    app: promtail
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: promtail
@@ -13,24 +12,22 @@ spec:
       labels:
         app: promtail
     spec:
-      serviceAccountName: promtail
       containers:
       - name: promtail
         image: grafana/promtail:2.9.2
         args:
-          - -config.file=/etc/promtail/promtail-config.yaml
+          - -config.file=/etc/promtail/config.yaml
         volumeMounts:
-        - name: containers
-          mountPath: /var/lib/docker/containers
-          readOnly: true
-        - name: config
-          mountPath: /etc/promtail/promtail-config.yaml
-          subPath: promtail-config.yaml
-        
+          - name: docker-logs
+            mountPath: /var/lib/docker/containers
+            readOnly: true
+          - name: promtail-config
+            mountPath: /etc/promtail
       volumes:
-      - name: containers
-        hostPath:
-          path: /var/lib/docker/containers
-      - name: config
-        configMap:
-          name: promtail-config
+        - name: promtail-config
+          configMap:
+            name: promtail-config
+        - name: docker-logs
+          hostPath:
+            path: /var/lib/docker/containers
+            type: Directory
