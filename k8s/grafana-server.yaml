@@ -22,13 +22,13 @@ spec:
         - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
           value: "true"
         volumeMounts:
-        - name: grafana-datasources
+        - name: all
           mountPath: /etc/grafana/provisioning/datasources
           readOnly: true
       volumes:
-      - name: all.yml
+      - name: all
         configMap:
-          name: grafana-datasources
+          name: all
 
 ---
 
