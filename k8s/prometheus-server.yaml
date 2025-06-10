@@ -17,7 +17,7 @@ spec:
         image: prom/prometheus
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 9091
+        - containerPort: 9090
 ---
 
 apiVersion: v1
