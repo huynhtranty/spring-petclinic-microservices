@@ -2,6 +2,7 @@ server:
   http_listen_port: 9080
   grpc_listen_port: 0
 
+<<<<<<< HEAD
 clients:
   - url: http://loki:3100/loki/api/v1/push
 
@@ -11,10 +12,25 @@ positions:
 scrape_configs:
   - job_name: kubernetes-pods
     pipeline_stages:
+=======
+client:
+  - url: http://loki:3100/loki/api/v1/push
+
+positions:
+  filename: /tmp/position.yaml
+
+scrape_configs:
+  - job_name: kubernetes-pods
+    pineline_stages:
+>>>>>>> b6ff0b52b2a7bef029604a66865704cf34954f72
       - docker: {}
     static_configs:
       - targets:
           - localhost
         labels:
           job: varlogs
+<<<<<<< HEAD
           __path__: /var/log/containers/*.log
+=======
+          __path__:/var/logs/container/*.log
+>>>>>>> b6ff0b52b2a7bef029604a66865704cf34954f72
