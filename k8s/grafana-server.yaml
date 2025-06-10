@@ -35,3 +35,16 @@ spec:
       - name: grafana-dashboards
         configMap:
           name: grafana-dashboards
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-server
+spec:
+  selector:
+    app: grafana
+  type: LoadBalancer
+  ports:
+    - port: 3000
+      targetPort: 3000
