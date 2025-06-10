@@ -28,7 +28,7 @@ spec:
       volumes:
       - name: all
         configMap:
-          name: all
+          name: datasource-configmap
 
 ---
 
