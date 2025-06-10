@@ -18,6 +18,14 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        env:
+        - name: CONFIG_SERVER_URL
+          value: http://config-server:8888
+        - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+          value: "true"
+        - name: SPRING_BOOT_ADMIN_DISCOVERY_ENABLED
+          value: "true"
+
 ---
 
 apiVersion: v1
