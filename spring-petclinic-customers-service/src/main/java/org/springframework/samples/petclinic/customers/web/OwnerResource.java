@@ -89,4 +89,10 @@ class OwnerResource {
         log.info("Saving owner {}", ownerModel);
         ownerRepository.save(ownerModel);
     }
+
+    @GetMapping("/fail")
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public void fail() {
+        throw new RuntimeException("Simulated server error for alert testing");
+    }
 }
