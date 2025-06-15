@@ -64,6 +64,10 @@ public class ApiGatewayController {
             );
 
     }
+    @GetMapping("/fail")
+    public Mono<Void> fail() {
+        return Mono.error(new RuntimeException("Simulated server error for alert testing"));
+    }
 
     private Function<Visits, OwnerDetails> addVisitsToOwner(OwnerDetails owner) {
         return visits -> {
