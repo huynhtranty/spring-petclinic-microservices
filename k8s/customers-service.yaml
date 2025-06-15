@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: customers-service
-        image: springcommunity/spring-petclinic-customers-service
+        image: sciderus/spring-petclinic-customers-service:f0d0ab2
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8081
