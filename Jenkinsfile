@@ -9,12 +9,12 @@ pipeline {
         string(name: 'discovery-server', defaultValue: 'main', description: 'Branch to build for discovery-server')
         string(name: 'genai-service', defaultValue: 'main', description: 'Branch to build for generic-service')
         string(name: 'vets-service', defaultValue: 'main', description: 'Branch to build for vets-service')
-        string(name: 'visit-service', defaultValue: 'main', description: 'Branch to build for visit-service')
+        string(name: 'visits-service', defaultValue: 'main', description: 'Branch to build for visit-service')
     }
 
     environment {
         DOCKER_HUB_CREDS = credentials('docker-hub')
-        REPOSITORY_PREFIX = "${DOCKER_HUB_CREDS_USR}"
+        REPOSITORY_PREFIX = "hytaty"
     }
 
     stages {
@@ -29,7 +29,7 @@ pipeline {
                         'spring-petclinic-discovery-server' : params['discovery-server'],
                         'spring-petclinic-genai-service'    : params['genai-service'],
                         'spring-petclinic-vets-service'     : params['vets-service'],
-                        'spring-petclinic-visits-service'   : params['visit-service']
+                        'spring-petclinic-visits-service'   : params['visits-service']
                     ]
                     COMMIT_ID = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                 }
