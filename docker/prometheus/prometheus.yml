@@ -33,4 +33,4 @@ scrape_configs:
 
 # rules file
 rule_files:
-  - "alert.rules.yml"
+  - "alert.rules"
