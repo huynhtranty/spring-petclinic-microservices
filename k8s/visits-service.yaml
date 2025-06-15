@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: visits-service
-        image: springcommunity/spring-petclinic-visits-service
+        image: hytaty/spring-petclinic-visits-service
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8082

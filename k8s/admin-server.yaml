@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: admin-server
-        image: springcommunity/spring-petclinic-admin-server
+        image: hytaty/spring-petclinic-admin-server
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090

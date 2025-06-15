@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: api-gateway
-        image: springcommunity/spring-petclinic-api-gateway
+        image: hytaty/spring-petclinic-api-gateway
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: genai-service
-        image: springcommunity/spring-petclinic-genai-service
+        image: hytaty/spring-petclinic-genai-service
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8084

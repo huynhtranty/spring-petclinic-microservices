@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: config-server
-        image: springcommunity/spring-petclinic-config-server
+        image: hytaty/spring-petclinic-config-server
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8888

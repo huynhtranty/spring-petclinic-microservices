@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: discovery-server
-        image: springcommunity/spring-petclinic-discovery-server
+        image: hytaty/spring-petclinic-discovery-server
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8761
