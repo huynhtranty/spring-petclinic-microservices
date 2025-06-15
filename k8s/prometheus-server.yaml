@@ -26,7 +26,7 @@ spec:
         - name: prometheus-config
           mountPath: /etc/prometheus
         - name: prometheus-alert-rules
-          mountPath: /etc/prometheus/alert.rules.yml
+          mountPath: /etc/prometheus/rules/alert.rules.yml
           subPath: alert.rules.yml
       volumes:
       - name: prometheus-config
