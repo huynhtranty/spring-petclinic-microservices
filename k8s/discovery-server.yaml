@@ -15,7 +15,7 @@ spec:
       containers:
       - name: discovery-server
         image: hytaty/spring-petclinic-discovery-server
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8761
         env:

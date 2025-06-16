@@ -15,7 +15,7 @@ spec:
       containers:
       - name: visits-service
         image: hytaty/spring-petclinic-visits-service
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8082
         env:
