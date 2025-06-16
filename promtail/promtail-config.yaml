@@ -18,7 +18,7 @@ scrape_configs:
           - localhost
         labels:
           job: kubernetes-pods
-          __path__: /var/log/containers/*.log
+          __path__: /var/lib/docker/containers/*.log
 
     relabel_configs:
       - source_labels: [__meta_kubernetes_pod_name]
