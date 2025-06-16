@@ -11,32 +11,21 @@ positions:
 scrape_configs:
   - job_name: kubernetes-pods
     pipeline_stages:
-      - docker: {}  # decode logs from JSON docker format (stdout/stderr)
+      - docker: {}
 
     static_configs:
       - targets:
           - localhost
         labels:
-          job: varlogs
-          __path__: /var/lib/docker/containers/*/*.log
-          __docker_container_name__: ""
+          job: kubernetes-pods
+          __path__: /var/log/containers/*.log
 
     relabel_configs:
-      # Extract the container ID from log file path
-      - source_labels: [__path__]
-        regex: /var/lib/docker/containers/([a-f0-9]+)/*.log
-        target_label: container_id
-
-      # Set job label = docker container name (cleaned)
-      - source_labels: [__docker_container_name__]
-        regex: '/?(.*)'
-        target_label: job
-
-      # Optional: Keep container name as label
-      - source_labels: [__docker_container_name__]
-        regex: '/?(.*)'
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_container_name]
         target_label: container
-
-      # Optional: Add instance label = hostname
       - replacement: ${HOSTNAME}
         target_label: instance
