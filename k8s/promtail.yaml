@@ -21,7 +21,7 @@ spec:
           - name: promtail-config
             mountPath: /etc/promtail
           - name: docker-logs
-            mountPath: /var/lib/docker/containers
+            mountPath: /var/log/containers
             readOnly: true
       volumes:
         - name: promtail-config
@@ -29,5 +29,5 @@ spec:
             name: promtail-config
         - name: docker-logs
           hostPath:
-            path: /var/lib/docker/containers
+            path: /var/log/containers
             type: Directory
