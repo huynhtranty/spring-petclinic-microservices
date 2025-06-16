@@ -15,7 +15,7 @@ spec:
       containers:
       - name: customers-service
         image: sciderus/spring-petclinic-customers-service:f0d0ab2
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8081
         env:
