@@ -13,4 +13,9 @@
         <pattern>${LOG_PATTERN}</pattern>
         </encoder>
     </appender>
+    <root level="INFO">
+        <appender-ref ref="Console" />
+        <!-- Nếu bạn muốn ghi ra file -->
+        <!-- <appender-ref ref="File" /> -->
+    </root>
 </configuration>

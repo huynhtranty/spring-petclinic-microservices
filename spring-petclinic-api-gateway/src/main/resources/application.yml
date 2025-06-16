@@ -48,7 +48,7 @@ spring:
     activate:
       on-profile: docker
     import: configserver:http://config-server:8888
-
+---
 spring:
   zipkin:
     base-url: http://tracing-server:9411
